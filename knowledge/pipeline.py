@@ -21,7 +21,7 @@ from retrieval.api import embed_texts, publish_chunks, version_has_chunks
 from .chunking import chunk_document
 from .models import AccessGrant, Document, DocumentVersion
 from .parsing import parse
-from .purge import maybe_purge
+from .purge import maybe_purge, run_publish_hooks
 from .types import ChangeEvent, DownloadResult, RevisionDrift, SourceDocument, UnsupportedFormat
 
 log = logging.getLogger(__name__)
@@ -182,7 +182,9 @@ def upsert(link, scope, event: ChangeEvent, fetcher: Fetcher) -> str:
         document.save()
         if previous is not None:
             maybe_purge(previous)
-        return PUBLISHED
+        published_version = version
+    run_publish_hooks(published_version, link)
+    return PUBLISHED
 
 
 def _hash(text: str) -> str:

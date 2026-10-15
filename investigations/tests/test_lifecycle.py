@@ -12,6 +12,7 @@ from infra.api import AccessEvent, with_org
 from investigations import service
 from investigations.api import (
     CapabilityToken,
+    FakeRunner,
     Investigation,
     InvestigationEvidence,
     cancel_investigation,
@@ -22,8 +23,6 @@ from knowledge.api import apply_change
 from knowledge.tests.helpers import ingest_markdown, make_event, principal_for
 from organizations.api import Membership, remove_member
 from organizations.tests.factories import make_membership, make_org, make_user
-
-from .fake_runner import FakeRunner
 
 pytestmark = pytest.mark.django_db(transaction=True)
 

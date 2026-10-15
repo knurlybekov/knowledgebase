@@ -31,20 +31,43 @@ def mrr(retrieved: list[str], relevant: list[str]) -> float | None:
     return 0.0
 
 
+_NEG = re.compile(r"\b(not|no|never|none|cannot|n't|without|rejected|declined)\b")
+_NUM = re.compile(
+    r"\b\d+(?:[.,]\d+)?\b|\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|fifty|hundred)\b"
+)
+_SENT = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def _negated(text: str) -> bool:
+    return bool(_NEG.search(text.lower()))
+
+
 def claim_supported(claim_text: str, evidence_texts: list[str]) -> bool:
-    """CI proxy for support: a normalized substring match, or at least 60% of the
-    claim's content words appear in one evidence passage. An LLM judge replaces
-    this behind EVAL_JUDGE; the proxy is labeled as such in the report."""
-    claim = claim_text.lower().strip()
+    """CI proxy for support (labeled as a proxy in the report). A claim is
+    supported when one evidence sentence contains it as a normalized substring, or
+    shares at least 80% of its content words with the same negation polarity and
+    the same numbers. An LLM judge (EVAL_JUDGE) replaces this when configured."""
+    claim = " ".join(claim_text.lower().split()).rstrip(".")
     if not claim:
         return False
     words = set(_WORD.findall(claim))
+    numbers = set(_NUM.findall(claim.lower()))
     for text in evidence_texts:
-        low = text.lower()
-        if claim[:120] in low:
-            return True
-        if words and len(words & set(_WORD.findall(low))) / len(words) >= 0.6:
-            return True
+        for sentence in _SENT.split(text):
+            low = " ".join(sentence.lower().split())
+            if not low:
+                continue
+            if claim in low:
+                return True
+            if not words:
+                continue
+            overlap = len(words & set(_WORD.findall(low))) / len(words)
+            if (
+                overlap >= 0.8
+                and _negated(claim) == _negated(low)
+                and numbers <= set(_NUM.findall(low))
+            ):
+                return True
     return False
 
 

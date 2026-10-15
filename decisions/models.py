@@ -65,6 +65,9 @@ class DecisionRecord(models.Model):
         "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="supersedes"
     )
     origin = models.CharField(max_length=12, default=ORIGIN_USER)
+    # Every revision the generating investigation saw (not only the cited ones):
+    # the record's prose may carry information from any of them (D6).
+    supplied_version_ids = models.JSONField(default=list, blank=True)
     created_by = models.ForeignKey(
         "accounts.User", on_delete=models.PROTECT, related_name="+", null=True
     )

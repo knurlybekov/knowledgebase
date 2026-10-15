@@ -19,6 +19,23 @@ log = logging.getLogger(__name__)
 _purge_hooks: list = []
 
 
+_publish_hooks: list = []
+
+
+def register_publish_hook(fn) -> None:
+    """Apps register `fn(version, link)` to run after a version is published
+    (for example decision extraction). Called outside the publish transaction."""
+    _publish_hooks.append(fn)
+
+
+def run_publish_hooks(version, link) -> None:
+    for hook in _publish_hooks:
+        try:
+            hook(version, link)
+        except Exception:
+            log.exception("publish hook failed", extra={"version_id": str(version.id)})
+
+
 def register_purge_hook(fn) -> None:
     """Apps register `fn(version)` to invalidate derived objects (answers,
     investigations, decision records) before the content disappears."""

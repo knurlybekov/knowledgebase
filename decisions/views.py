@@ -57,6 +57,12 @@ def decision_detail(request, record_id):
             if _is_steward(request)
             else []
         )
+        # The replacement record is shown only when the reader may see it too.
+        superseded_by = (
+            record.superseded_by
+            if record.superseded_by and record_visible(request.principal, record.superseded_by)
+            else None
+        )
     return render(
         request,
         "decisions/detail.html",
@@ -64,6 +70,7 @@ def decision_detail(request, record_id):
             "record": record,
             "timeline": tl,
             "stages": list(tl.stages.items()),
+            "superseded_by": superseded_by,
             "is_steward": _is_steward(request),
             "superseders": [c for c in candidates if c.id != record.id],
         },

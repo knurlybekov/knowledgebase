@@ -42,7 +42,8 @@ def _bearer(headers) -> str:
 
 
 def _reserve_tool_call(investigation_id, run_key: str) -> int:
-    """Conditional increment; returns the new count or raises."""
+    """Conditional increment bound to the token's own run key (attempt); returns
+    the new count or raises."""
     with connection.cursor() as cur:
         cur.execute(
             """
@@ -144,39 +145,55 @@ def _authorize_and_run(headers, tool_name, arguments, impl) -> dict:
     # Step 2: enter the organization scope before touching any scoped row.
     with with_org(token.organization_id, token.user_id):
         with transaction.atomic():
-            investigation = Investigation.objects.filter(id=token.investigation_id).first()
+            investigation = (
+                Investigation.objects.select_for_update().filter(id=token.investigation_id).first()
+            )
             if investigation is None:
                 raise ToolError("unauthorized", "the capability token is not valid")
-            _reserve_tool_call(investigation.id, investigation.run_key)
+            # Recheck revocation under the investigation lock: a rotation between
+            # the global lookup and this point must not let a stale token through.
+            if CapabilityToken.objects.filter(id=token.id, revoked_at__isnull=True).count() != 1:
+                raise ToolError("unauthorized", "the capability token is not valid")
+            # The reservation is bound to the token's own attempt, never to whatever
+            # run key the investigation carries now.
+            token_run_key = f"{investigation.id}:{token.attempt}"
+            if investigation.run_key != token_run_key:
+                exc = ToolError("not_running", "this token belongs to a superseded attempt")
+                _deny(token, investigation, tool_name, exc)
+                return exc.payload()
+            try:
+                _reserve_tool_call(investigation.id, token_run_key)
+            except ToolError as exc:
+                _deny(token, investigation, tool_name, exc)
+                return exc.payload()
             user = token.user
             organization = token.organization
             principal = Principal(
                 user=user, organization=organization, role="member", investigation=investigation
             )
             if not membership_active(principal):
-                record_access(
-                    token.organization_id,
-                    token.user,
-                    "denied",
-                    object_type="tool",
-                    object_id=tool_name,
-                    meta={"reason": "membership"},
-                    investigation_id=investigation.id,
-                )
-                metrics.access_denied_total.labels(path="mcp.membership").inc()
-                raise ToolError("unauthorized", "the user is no longer a member")
-            result = impl(principal, investigation, arguments)
+                exc = ToolError("unauthorized", "the user is no longer a member")
+                _deny(token, investigation, tool_name, exc)
+                return exc.payload()
+            try:
+                result = impl(principal, investigation, arguments)
+            except ToolError as exc:
+                # Expected denials commit: the attempted call stays counted and audited.
+                _deny(token, investigation, tool_name, exc)
+                return exc.payload()
             evidence = result.pop("_evidence", [])  # [(chunk_id, version_id, start, end)]
             payload = {"notice": DATA_NOTICE, **result}
             text = json.dumps(payload, ensure_ascii=False)
-            allocated = _allocate_output(investigation.id, investigation.run_key, len(text))
+            allocated = _allocate_output(investigation.id, token_run_key, len(text))
             if allocated < len(text):
                 payload, text, evidence = _trim(payload, allocated, evidence)
                 if payload is None:
                     _release_output(investigation.id, allocated)
-                    raise ToolError(
+                    exc = ToolError(
                         "budget_exhausted", "the output budget for this investigation is exhausted"
                     )
+                    _deny(token, investigation, tool_name, exc)
+                    return exc.payload()
             for chunk_id, version_id, start, end in evidence:
                 InvestigationEvidence.objects.get_or_create(
                     investigation=investigation,
@@ -195,6 +212,23 @@ def _authorize_and_run(headers, tool_name, arguments, impl) -> dict:
                 investigation_id=investigation.id,
             )
             return payload
+
+
+def _deny(token, investigation, tool_name: str, exc: ToolError) -> None:
+    """Audit a denial inside the open transaction (the caller commits or re-raises)."""
+    try:
+        record_access(
+            token.organization_id,
+            token.user,
+            "denied",
+            object_type="tool",
+            object_id=tool_name,
+            meta={"code": exc.code},
+            investigation_id=investigation.id,
+        )
+    except Exception:
+        log.exception("denial audit failed")
+    metrics.access_denied_total.labels(path=f"mcp.{exc.code}").inc()
 
 
 def _trim(payload: dict, allocated: int, evidence: list):

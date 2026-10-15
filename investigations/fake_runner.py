@@ -1,4 +1,4 @@
-"""In-process stand-in for the runner service. It drives the MCP tool functions
+"""In-process stand-in for the runner service (tests and the evaluation runner). It drives the MCP tool functions
 directly with the capability token (as Hermes would over HTTP) following a
 script, and produces the agent's Markdown result."""
 
@@ -6,8 +6,7 @@ from __future__ import annotations
 
 import time
 
-from investigations.api import RunnerError, RunState
-from mcp_server.api import authorize_and_run, get_document, search_knowledge
+from .runner_client import RunnerError, RunState
 
 
 class FakeRunner:
@@ -85,6 +84,8 @@ class FakeRunner:
         return self._state(run_key)
 
     def _tool(self, run, name, args, impl):
+        from mcp_server.api import authorize_and_run  # lazy: mcp_server imports investigations.api
+
         headers = {"authorization": f"Bearer {run['token']}"}
         self._event(run, {"type": "tool_use", "name": f"mcp_knowledge_{name}"})
         payload = authorize_and_run(headers, name, args, impl)
@@ -101,6 +102,8 @@ class FakeRunner:
         return payload
 
     def _agent_loop(self, run):
+        from mcp_server.api import get_document, search_knowledge
+
         evidence_ids: list[str] = []
         statements: list[tuple[str, list[str]]] = []
         for q in self.queries:

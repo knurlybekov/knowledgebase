@@ -291,3 +291,59 @@ def test_views_list_detail_create_and_transition():
     o = Client()
     o.force_login(outsider)
     assert o.get(f"/o/{org.slug}/decisions/{record_id}/").status_code == 404
+
+
+def test_steward_transition_does_not_restore_purged_prose():
+    org, _member, steward, _link, _scope, chunks = corpus()
+    p_steward = principal_for(org, steward, role="steward")
+    record = create_candidate(
+        p_steward,
+        title="Hosting",
+        origin="user",
+        description="prose",
+        evidence=[EvidenceInput(str(chunks["gdrive:decision"].id), "decision")],
+    )
+    # The steward holds a stale instance (content present) while a purge lands.
+    with with_org(org.id):
+        DecisionRecord.objects.filter(id=record.id).update(description=None, content_state="purged")
+    assert record.content_state == "present" and record.description == "prose"
+    with pytest.raises(PermissionDenied):
+        transition(p_steward, record, "draft")
+    with with_org(org.id):
+        fresh = DecisionRecord.objects.get(id=record.id)
+        assert (
+            fresh.content_state == "purged"
+            and fresh.description is None
+            and fresh.status == "candidate"
+        )
+
+
+def test_superseding_record_title_hidden_from_unauthorized_reader():
+    org, member, steward, _link, _scope, chunks = corpus()
+    p_steward = principal_for(org, steward, role="steward")
+    old = create_candidate(
+        p_steward,
+        title="Old decision",
+        origin="user",
+        evidence=[EvidenceInput(str(chunks["gdrive:decision"].id))],
+    )
+    transition(p_steward, old, "draft")
+    transition(p_steward, old, "verified")
+    # The steward's private document (only the steward linked it) backs the replacement.
+    ingest_markdown(org, steward, {"gdrive:private": b"# Private\nSecret replacement rationale."})
+    with with_org(org.id):
+        private_chunk = Chunk.objects.get(document__source_id="gdrive:private")
+    new = create_candidate(
+        p_steward,
+        title="SECRET replacement",
+        origin="user",
+        evidence=[EvidenceInput(str(private_chunk.id))],
+    )
+    transition(p_steward, new, "draft")
+    transition(p_steward, new, "verified")
+    transition(p_steward, old, "superseded", superseded_by=new)
+    c = Client()
+    c.force_login(member)
+    page = c.get(f"/o/{org.slug}/decisions/{old.id}/")
+    assert page.status_code == 200
+    assert b"SECRET replacement" not in page.content and b"a record you cannot see" in page.content

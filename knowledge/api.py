@@ -27,7 +27,7 @@ from .pipeline import (
     revoke_scope_grants,
     sweep_not_seen,
 )
-from .purge import maybe_purge, purge_version, register_purge_hook
+from .purge import maybe_purge, purge_version, register_publish_hook, register_purge_hook
 from .types import (
     ChangeEvent,
     ChunkDraft,
@@ -77,6 +77,7 @@ __all__ = [
     "membership_active",
     "parse",
     "purge_version",
+    "register_publish_hook",
     "register_purge_hook",
     "revoke_link_drive_grants",
     "revoke_link_grants",

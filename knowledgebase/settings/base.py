@@ -55,6 +55,9 @@ env = environ.Env(
     DISPATCH_TIMEOUT_S=(int, 60),
     HEARTBEAT_INTERVAL_S=(int, 10),
     MCP_MIN_RESPONSE_CHARS=(int, 200),
+    # Decision extraction after each publish (candidates only). Off by default: it
+    # calls the answer model for every new revision.
+    DECISION_EXTRACTION_ENABLED=(bool, False),
     # --- Request limits ---
     RATE_LIMIT_SEARCH_PER_MIN=(int, 60),
     RATE_LIMIT_INVESTIGATION_PER_HOUR=(int, 20),
@@ -278,6 +281,7 @@ INVESTIGATION_LIMITS = {
 DISPATCH_TIMEOUT_S = env("DISPATCH_TIMEOUT_S")
 HEARTBEAT_INTERVAL_S = env("HEARTBEAT_INTERVAL_S")
 MCP_MIN_RESPONSE_CHARS = env("MCP_MIN_RESPONSE_CHARS")
+DECISION_EXTRACTION_ENABLED = env("DECISION_EXTRACTION_ENABLED")
 
 # ---------------------------------------------------------------------------
 # Request limits and metrics

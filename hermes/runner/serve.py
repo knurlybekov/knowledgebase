@@ -100,7 +100,7 @@ def create_run(body: CreateRun):
         existing = _runs.get(body.run_key) or (RunRecord.load(body.run_key) and _get(body.run_key))
         if existing:
             return JSONResponse(_state(existing), status_code=200)
-        active = sum(1 for r in _runs.values() if r.active)
+        active = sum(1 for r in _runs.values() if r.active or r.record.state == "created")
         if active >= MAX_CONCURRENT:
             raise HTTPException(429, f"too many concurrent runs (max {MAX_CONCURRENT})")
         safe = body.run_key.replace(":", "_")
@@ -122,9 +122,10 @@ def create_run(body: CreateRun):
 def start_run(run_key: str):
     run = _get(run_key)
     with _lock:
-        body = _pending.pop(run_key, None)
         if run.record.state != "created":
-            return _state(run)  # idempotent
+            _pending.pop(run_key, None)
+            return _state(run)  # idempotent, and a cancelled run never starts
+        body = _pending.pop(run_key, None)
         if body is None:
             raise HTTPException(
                 409, "run was created by a previous runner process; create it again"
@@ -169,8 +170,9 @@ def cancel_run(run_key: str):
 @app.delete("/runs/{run_key}", dependencies=[Depends(_auth)])
 def delete_run(run_key: str):
     run = _get(run_key)
-    if run.active:
-        raise HTTPException(409, "run is active; cancel it first")
+    if run.active or not run.pump_done.wait(timeout=5.0):
+        raise HTTPException(409, "run is active or still persisting; cancel it first")
+    _pending.pop(run_key, None)
     run.record.delete()
     _runs.pop(run_key, None)
     return {"deleted": True}

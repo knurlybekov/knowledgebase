@@ -32,6 +32,33 @@ PROVIDER_KEY_ENV = os.environ.get("HERMES_PROVIDER_API_KEY_ENV", "ANTHROPIC_API_
 RECORD_TTL_S = int(os.environ.get("RUNNER_RECORD_TTL_S", str(24 * 3600)))
 GRACE_S = float(os.environ.get("RUNNER_KILL_GRACE_S", "10"))
 TOOLSET = "mcp-knowledge"
+# Hard-suppressed last by Hermes (agent.disabled_toolsets); defense in depth under the allow-list.
+DISABLED_TOOLSETS = [
+    "terminal",
+    "file",
+    "browser",
+    "web",
+    "search",
+    "x_search",
+    "vision",
+    "image_gen",
+    "video_gen",
+    "tts",
+    "skills",
+    "todo",
+    "memory",
+    "session_search",
+    "cronjob",
+    "code_execution",
+    "delegation",
+    "clarify",
+    "messaging",
+    "discord",
+    "discord_admin",
+    "debugging",
+    "kanban",
+    "safe",
+]
 BLOCKED_TOOL_PREFIXES = (
     "terminal",
     "browser",
@@ -112,6 +139,7 @@ def render_config(mcp_url: str, model: str, max_turns: int, max_tool_calls: int)
         "agent:\n"
         f"  max_turns: {max_turns}\n"
         f"  max_tool_calls: {max_tool_calls}\n"
+        f"  disabled_toolsets: [{', '.join(DISABLED_TOOLSETS)}]\n"
         "memory:\n"
         "  memory_enabled: false\n"
         "  user_profile_enabled: false\n"
@@ -140,6 +168,10 @@ class Run:
         self._seq = 0
         self._proc: subprocess.Popen | None = None
         self._cancel_requested = False
+        self.pump_done = threading.Event()
+        if record.state not in ("created", "running"):
+            self.pump_done.set()
+        self._stderr_tail: list[str] = []
 
     # --- events ---------------------------------------------------------------
     def _append(self, event: dict) -> None:
@@ -226,8 +258,18 @@ class Run:
         self.record.timeout_s = timeout_s
         self.record.save()
         self._append({"type": "runner", "subtype": "started", "pid": self._proc.pid})
+        threading.Thread(target=self._drain_stderr, daemon=True).start()
         threading.Thread(target=self._pump, daemon=True).start()
         threading.Thread(target=self._watchdog, args=(timeout_s,), daemon=True).start()
+
+    def _drain_stderr(self) -> None:
+        """Drain stderr concurrently so a chatty process never blocks on a full pipe;
+        keep only a bounded tail."""
+        assert self._proc is not None and self._proc.stderr is not None
+        for line in self._proc.stderr:
+            self._stderr_tail.append(line[:500])
+            if len(self._stderr_tail) > 50:
+                del self._stderr_tail[:-50]
 
     def _pump(self) -> None:
         assert self._proc is not None and self._proc.stdout is not None
@@ -269,10 +311,8 @@ class Run:
                 error = event.get("error")
             elif kind == "system":
                 self._append({"type": "system", "model": event.get("model")})
-        stderr_tail = ""
-        if self._proc.stderr is not None:
-            stderr_tail = self._proc.stderr.read()[-2000:]
         code = self._proc.wait()
+        stderr_tail = "".join(self._stderr_tail)[-2000:]
         if self.record.state == "running":
             if self._cancel_requested:
                 outcome = "cancelled"
@@ -292,6 +332,7 @@ class Run:
         self.record.save()
         self._append({"type": "terminal", "outcome": outcome, "exit_code": code})
         shutil.rmtree(self.record.dir, ignore_errors=True)  # session db, config, AGENTS.md
+        self.pump_done.set()
 
     def _watchdog(self, timeout_s: int) -> None:
         deadline = time.time() + timeout_s
@@ -305,7 +346,22 @@ class Run:
             time.sleep(0.5)
 
     def cancel(self) -> bool:
-        if self._proc is None or self._proc.poll() is not None:
+        if self._proc is None:
+            # Created but not started: terminalize so /start cannot launch it.
+            if self.record.state == "created":
+                self.record.state = "cancelled"
+                self.record.terminal = {
+                    "outcome": "cancelled",
+                    "final_text": "",
+                    "usage": {},
+                    "error": None,
+                }
+                self.record.save()
+                self._append({"type": "terminal", "outcome": "cancelled", "exit_code": 130})
+                self.pump_done.set()
+                return True
+            return False
+        if self._proc.poll() is not None:
             return False
         self._cancel_requested = True
         self.record.state = "cancelled"
@@ -323,9 +379,14 @@ class Run:
             return
         deadline = time.time() + GRACE_S
         while time.time() < deadline:
-            if self._proc is not None and self._proc.poll() is not None:
+            if (
+                self._proc is not None
+                and self._proc.poll() is not None
+                and not _group_members(self.record.pgid)
+            ):
                 return
             time.sleep(0.2)
+        # Leader exit is not enough: escalate while any descendant of the group survives.
         try:
             os.killpg(self.record.pgid, signal.SIGKILL)
         except ProcessLookupError:
@@ -334,6 +395,30 @@ class Run:
     @property
     def active(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
+
+
+def _group_members(pgid: int | None) -> list[int]:
+    if pgid is None:
+        return []
+    members = []
+    for proc in psutil.process_iter(["pid"]):
+        try:
+            if os.getpgid(proc.pid) == pgid:
+                members.append(proc.pid)
+        except (psutil.NoSuchProcess, ProcessLookupError, psutil.AccessDenied):
+            continue
+    return members
+
+
+def expire_terminal_records() -> int:
+    """Periodic: drop terminal records (and their files) older than RECORD_TTL_S."""
+    now = time.time()
+    expired = 0
+    for record in RunRecord.all():
+        if record.state not in ("created", "running") and now - record.updated_at > RECORD_TTL_S:
+            record.delete()
+            expired += 1
+    return expired
 
 
 def group_alive_with_identity(record: RunRecord) -> bool:

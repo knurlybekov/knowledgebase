@@ -56,8 +56,11 @@ def create_candidate(
     decision_date=None,
     approval_status: str = DecisionRecord.APPROVAL_UNKNOWN,
     project: Project | None = None,
+    supplied_version_ids: list[str] | None = None,
 ) -> DecisionRecord:
-    """Create a candidate from chunks the principal can see. Never verified here."""
+    """Create a candidate from chunks the principal can see. Never verified here.
+    `supplied_version_ids` are every revision the generating investigation saw
+    (cited or not); the record depends on all of them (D6)."""
     if not title.strip():
         raise ValidationError("A title is required.")
     if not evidence:
@@ -67,6 +70,9 @@ def create_candidate(
     missing = [e.chunk_id for e in evidence if e.chunk_id not in by_id]
     if missing:
         raise PermissionDenied("Some evidence passages are not visible to you.")
+    supplied = {str(v) for v in (supplied_version_ids or [])} | {
+        str(by_id[e.chunk_id].version_id) for e in evidence
+    }
     with with_org(principal.organization_id, principal.user_id):
         record = DecisionRecord.objects.create(
             organization_id=principal.organization_id,
@@ -81,6 +87,7 @@ def create_candidate(
             origin=origin,
             created_by=principal.user,
             status=DecisionRecord.STATUS_CANDIDATE,
+            supplied_version_ids=sorted(supplied),
         )
         for item in evidence:
             chunk = by_id[item.chunk_id]
@@ -115,23 +122,30 @@ def transition(
     *,
     superseded_by: DecisionRecord | None = None,
 ) -> DecisionRecord:
-    """Steward-only state machine: candidate -> draft -> verified -> superseded."""
+    """Steward-only state machine: candidate -> draft -> verified -> superseded.
+    The record is locked and reloaded; only transition fields are written, and
+    only while the content is present (a purge in between wins)."""
     require_role(principal, Membership.ROLE_STEWARD, Membership.ROLE_ADMIN)
-    allowed = TRANSITIONS.get(record.status, set())
-    if to_status not in allowed:
-        raise ValidationError(f"Cannot move a {record.status} record to {to_status}.")
     with with_org(principal.organization_id, principal.user_id):
+        record = DecisionRecord.objects.select_for_update().get(
+            id=record.id, organization_id=principal.organization_id
+        )
+        allowed = TRANSITIONS.get(record.status, set())
+        if to_status not in allowed:
+            raise ValidationError(f"Cannot move a {record.status} record to {to_status}.")
         if not record_visible(principal, record):
             raise PermissionDenied("You cannot see all evidence of this record.")
+        fields = {"status": to_status}
         if to_status == DecisionRecord.STATUS_VERIFIED:
-            record.verified_by = principal.user
-            record.verified_at = timezone.now()
+            fields.update(verified_by=principal.user, verified_at=timezone.now())
         if to_status == DecisionRecord.STATUS_SUPERSEDED:
             if superseded_by is None:
                 raise ValidationError("A superseding record is required.")
-            record.superseded_by = superseded_by
-        record.status = to_status
-        record.save()
+            fields["superseded_by"] = superseded_by
+        DecisionRecord.objects.filter(
+            id=record.id, content_state=DecisionRecord.CONTENT_PRESENT
+        ).update(**fields)
+        record.refresh_from_db()
         record_access(
             principal.organization_id,
             principal.user,
@@ -144,11 +158,20 @@ def transition(
 
 
 def _evidence_version_ids(record_ids):
+    """All revisions a record depends on: cited evidence plus everything supplied
+    to the generating investigation (D6)."""
+    import uuid
+
     out: dict = {}
     for rid, vid in DecisionEvidence.objects.filter(record_id__in=record_ids).values_list(
         "record_id", "version_id"
     ):
         out.setdefault(rid, set()).add(vid)
+    for rid, supplied in DecisionRecord.objects.filter(id__in=record_ids).values_list(
+        "id", "supplied_version_ids"
+    ):
+        for v in supplied or []:
+            out.setdefault(rid, set()).add(uuid.UUID(str(v)))
     return out
 
 
@@ -216,12 +239,16 @@ def pending_approval_count(org_id) -> int:
 
 
 def purge_records_for_version(version) -> int:
-    """Purge hook (D6): records with evidence on this revision lose their prose;
-    evidence rows keep document, version label and position as tombstones."""
-    record_ids = list(
-        DecisionEvidence.objects.filter(version=version)
-        .values_list("record_id", flat=True)
-        .distinct()
+    """Purge hook (D6): records that cite this revision or were generated with
+    it in view lose their prose; evidence rows keep document, version label and
+    position as tombstones."""
+    record_ids = set(
+        DecisionEvidence.objects.filter(version=version).values_list("record_id", flat=True)
+    )
+    record_ids |= set(
+        DecisionRecord.objects.filter(supplied_version_ids__contains=[str(version.id)]).values_list(
+            "id", flat=True
+        )
     )
     if not record_ids:
         return 0

@@ -39,6 +39,7 @@ services:
       MIGRATOR_DATABASE_URL: postgres://kb_migrator:${KB_MIGRATOR_PASSWORD}@postgres:5432/kb
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
+    networks: [default, agents]
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -59,6 +60,7 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
     entrypoint: []
     command: ["celery", "-A", "knowledgebase", "worker", "-l", "INFO", "--concurrency", "4", "--max-tasks-per-child", "200"]
+    networks: [default, agents]
     depends_on: {web: {condition: service_healthy}}
     restart: unless-stopped
     deploy: {resources: {limits: {memory: 2g, cpus: "2.0"}}}
@@ -93,10 +95,18 @@ services:
 
   hermes-agent:
     build: ./hermes
-    env_file: [.env]
+    # Explicit environment only: the runner must not receive the application's
+    # database, Django or connector secrets.
     environment:
       RUNNER_PORT: "8700"
+      RUNNER_SHARED_SECRET: ${RUNNER_SHARED_SECRET:?set RUNNER_SHARED_SECRET}
+      RUNNER_MAX_CONCURRENT: ${RUNNER_MAX_CONCURRENT:-4}
       KNOWLEDGE_MCP_URL: http://knowledge-mcp:8710/mcp
+      HERMES_MODEL: ${HERMES_MODEL:-anthropic/claude-opus-5}
+      HERMES_PROVIDER: ${HERMES_PROVIDER:-anthropic}
+      HERMES_PROVIDER_API_KEY_ENV: ${HERMES_PROVIDER_API_KEY_ENV:-ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${HERMES_OPENAI_API_KEY:-}
     volumes: [kb-hermes-data:/opt/data]
     networks: [agents]
     depends_on: {knowledge-mcp: {condition: service_healthy}}
@@ -119,7 +129,8 @@ services:
 
 networks:
   default: {}
-  # hermes-agent sees only knowledge-mcp (and the internet for its LLM provider).
+  # Control network: web and worker reach the runner; the runner reaches knowledge-mcp
+  # and its LLM provider. Postgres and Redis are not on it.
   agents: {internal: false}
 
 volumes:

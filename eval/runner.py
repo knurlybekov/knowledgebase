@@ -57,7 +57,7 @@ def run_quick(principal, query: dict) -> QueryResult:
     qr.claims = len(answer.claims)
     qr.unsupported_listed = len(answer.unsupported)
     evidence_texts = [c.excerpt for c in answer.citations]
-    qr.supported = sum(1 for c in answer.claims if claim_supported(c["text"], evidence_texts))
+    qr.supported = sum(1 for c in answer.claims if _judge(c["text"], evidence_texts))
     terms = query.get("claim_terms") or []
     if terms:
         joined = " ".join(c["text"] for c in answer.claims).lower()
@@ -69,6 +69,35 @@ def run_quick(principal, query: dict) -> QueryResult:
         )
     qr.latency_ms = int((time.monotonic() - started) * 1000)
     return qr
+
+
+def _judge(claim: str, evidence_texts: list[str]) -> bool:
+    """LLM judge when EVAL_JUDGE=anthropic and a key exists; otherwise the proxy."""
+    import os
+
+    if os.environ.get("EVAL_JUDGE") == "anthropic" and settings.ANTHROPIC_API_KEY:
+        import anthropic
+        from pydantic import BaseModel
+
+        class Verdict(BaseModel):
+            supported: bool
+            reason: str
+
+        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        response = client.messages.parse(
+            model="claude-opus-5",
+            max_tokens=400,
+            system="Judge whether the claim is fully supported by the evidence passages. Negations and numbers must agree.",
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Claim: {claim}\n\nEvidence:\n" + "\n---\n".join(evidence_texts),
+                }
+            ],
+            output_format=Verdict,
+        )
+        return bool(response.parsed_output and response.parsed_output.supported)
+    return claim_supported(claim, evidence_texts)
 
 
 def write_report(rows: list[QueryResult], meta: dict) -> Path:
@@ -103,20 +132,83 @@ def write_report(rows: list[QueryResult], meta: dict) -> Path:
         "",
         "Interpretation: with `EMBEDDER=mock` the vector leg carries no meaning and the keyword leg does the work, so these "
         "numbers describe the keyword path only; vector metrics need `EMBEDDER=openai`. The support check is a word-overlap proxy "
-        "unless `EVAL_JUDGE` names a provider. Deep (agent) queries are evaluated through the FakeRunner in the test suite "
-        "(`investigations/tests/test_lifecycle.py::test_end_to_end_three_documents_with_chunk_level_citations`); live Hermes "
-        "numbers appear here only when the `hermes` marker tests ran.",
+        "unless `EVAL_JUDGE=anthropic` and a key are set. Deep queries run through the real investigation lifecycle with the "
+        "in-process FakeRunner driving the MCP tools (evidence coverage and citation validity of the agent path, no model); "
+        "live Hermes numbers appear only when the `hermes` marker tests ran.",
     ]
     path.write_text("\n".join(lines) + "\n")
     return path
 
 
+def run_deep(principal, query: dict) -> QueryResult:
+    """Deep golden queries run through the real investigation lifecycle with the
+    in-process FakeRunner driving the MCP tools (no Hermes process): evidence
+    coverage and citation validity of the agent path."""
+    from infra.api import with_org
+    from investigations import service
+    from investigations import tasks as inv_tasks
+    from investigations.api import FakeRunner, Investigation, start_investigation
+    from knowledge.api import Document
+
+    started = time.monotonic()
+    words = [w for w in query["question"].replace("?", "").split() if len(w) > 4][:3]
+    runner = FakeRunner("complete", queries=[query["question"], " ".join(words)], read_first=False)
+    settings.HERMES_ENABLED = True
+    original_delay = inv_tasks.run_investigation.delay
+    inv_tasks.run_investigation.delay = lambda *a, **k: None
+    try:
+        inv = start_investigation(principal, query["question"])
+        outcome = service.execute(principal.organization_id, inv.id, client=runner)
+    finally:
+        inv_tasks.run_investigation.delay = original_delay
+    with with_org(principal.organization_id):
+        row = Investigation.objects.get(id=inv.id)
+        cited_docs: list[str] = []
+        for c in (row.result or {}).get("citations", []):
+            sid = (
+                Document.objects.filter(id=c["document_id"])
+                .values_list("source_id", flat=True)
+                .first()
+            )
+            if sid and sid not in cited_docs:
+                cited_docs.append(sid)
+    relevant = list(query.get("relevant") or [])
+    qr = QueryResult(
+        id=query["id"],
+        mode="deep",
+        retrieved=cited_docs,
+        relevant=relevant,
+        recall5=recall_at_k(cited_docs, relevant, 5),
+        precision5=precision_at_k(cited_docs, relevant, 5),
+        mrr=mrr(cited_docs, relevant),
+        evidence_state=outcome,
+    )
+    result = row.result or {}
+    qr.claims = len(result.get("statements", []))
+    qr.supported = sum(1 for st in result.get("statements", []) if st["evidence_ids"])
+    qr.unsupported_listed = len(result.get("unsupported_statements", []))
+    qr.notes.append(f"tool_calls={row.tool_calls_used}")
+    qr.latency_ms = int((time.monotonic() - started) * 1000)
+    return qr
+
+
+def judge_name() -> str:
+    import os
+
+    judge = os.environ.get("EVAL_JUDGE", "")
+    if judge == "anthropic" and settings.ANTHROPIC_API_KEY:
+        return "anthropic LLM judge"
+    return "word-overlap proxy" + (" (EVAL_JUDGE set but no key: judge not run)" if judge else "")
+
+
 def run_all(principal) -> tuple[list[QueryResult], Path]:
-    rows = [run_quick(principal, q) for q in load_golden()]
+    rows = []
+    for q in load_golden():
+        rows.append(run_deep(principal, q) if q.get("mode") == "deep" else run_quick(principal, q))
     meta = {
         "embedder": settings.EMBEDDER,
         "llm": settings.LLM_PROVIDER,
         "documents": "7",
-        "judge": "word-overlap proxy",
+        "judge": judge_name(),
     }
     return rows, write_report(rows, meta)

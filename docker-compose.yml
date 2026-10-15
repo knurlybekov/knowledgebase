@@ -37,10 +37,18 @@ services:
       context: ./hermes
     container_name: kb-hermes-agent
     profiles: ["hermes"]
-    env_file: [.env]
+    # Explicit environment only (no application .env): see docker-compose.prod.yml.
     environment:
       RUNNER_PORT: "8700"
+      RUNNER_SHARED_SECRET: ${RUNNER_SHARED_SECRET:-dev-runner-secret}
+      RUNNER_MAX_CONCURRENT: ${RUNNER_MAX_CONCURRENT:-2}
       KNOWLEDGE_MCP_URL: http://host.docker.internal:8710/mcp
+      HERMES_MODEL: ${HERMES_MODEL:-anthropic/claude-opus-5}
+      HERMES_PROVIDER: ${HERMES_PROVIDER:-anthropic}
+      HERMES_PROVIDER_API_KEY_ENV: ${HERMES_PROVIDER_API_KEY_ENV:-ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "127.0.0.1:8700:8700"
     volumes:
       - kb-hermes-data:/opt/data
     # Internal only: no published port. The backend reaches it on the compose network.

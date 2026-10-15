@@ -8,7 +8,8 @@
   {% if inv.metadata_only %}<p class="text-sm text-slate-500">Administrators see status only.</p>
   {% elif inv.withheld or inv.content_state == 'purged' %}<p>The result is no longer available: a document it relied on is not visible to you or was removed.</p>
   {% elif inv.result %}
-    <section class="mb-4 rounded border bg-white p-4"><h2 class="font-semibold">Answer</h2><div class="whitespace-pre-line">{{ inv.result.answer }}</div>
+    <section class="mb-4 rounded border bg-white p-4"><h2 class="font-semibold">Answer</h2>
+      {% if inv.result.answer_verified %}<div class="whitespace-pre-line">{{ inv.result.answer }}</div>{% else %}<p class="text-amber-800">{{ inv.result.answer }} The agent's free text is listed below under statements without verified evidence.</p>{% endif %}
       {% if inv.result.malformed %}<p class="text-sm text-amber-700">The agent did not use the expected structure; statements could not be verified.</p>{% endif %}</section>
     <section class="mb-4 rounded border bg-white p-4"><h2 class="font-semibold">Statements with evidence</h2>
       <ul class="list-disc pl-5">{% for s in inv.result.statements %}<li>{{ s.text }} <span class="text-xs text-slate-500">{% for e in s.evidence_ids %}<code>{{ e|truncatechars:24 }}</code> {% endfor %}</span></li>{% empty %}<li>None verified.</li>{% endfor %}</ul>

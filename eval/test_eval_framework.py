@@ -39,3 +39,5 @@ def test_run_eval_meets_keyword_floor(tmp_path, monkeypatch):
     assert sum(recalls) / len(recalls) >= 0.8, recalls
     assert rows["unanswerable"][5] == "insufficient"
     assert "quick" in rows["vacation-days"][1]
+    assert rows["hosting-why"][1] == "deep" and rows["hosting-why"][5] == "completed"
+    assert float(rows["hosting-why"][2]) >= 0.5

@@ -22,6 +22,7 @@ class ParsedResult:
     unsupported_statements: list[str] = field(default_factory=list)
     cited_evidence_ids: list[str] = field(default_factory=list)
     malformed: bool = False
+    answer_verified: bool = False  # True only when at least one statement survived validation
 
 
 def _bullets(block: str) -> list[str]:
@@ -73,4 +74,13 @@ def validate_citations(parsed: ParsedResult, returned_ids: set[str]) -> ParsedRe
             parsed.unsupported_statements.append(st["text"])
     parsed.statements = kept
     parsed.cited_evidence_ids = sorted(set(cited))
+    parsed.answer_verified = bool(kept)
+    if not kept:
+        # Nothing verifiable survived: the free-text answer is not presented as findings.
+        parsed.unsupported_statements = (
+            [parsed.answer, *parsed.unsupported_statements]
+            if parsed.answer
+            else parsed.unsupported_statements
+        )
+        parsed.answer = "The retrieved evidence does not establish a verifiable answer."
     return parsed

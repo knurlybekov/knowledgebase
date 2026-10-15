@@ -133,10 +133,13 @@ def find_related_documents(principal, investigation, args: dict) -> dict:
         raise ToolError("not_found", "no visible document with that id")
     visible = visible_versions(principal)
     visible_doc_ids = set(visible.values_list("document_id", flat=True))
+    visible_version_ids = set(visible.values_list("id", flat=True))
     explicit = []
-    for ref in DocumentReference.objects.filter(from_version__document=document).select_related(
-        "to_document"
-    ):
+    evidence = []
+    # References are read only from revisions the reader may see, in both directions.
+    for ref in DocumentReference.objects.filter(
+        from_version__document=document, from_version_id__in=visible_version_ids
+    ).select_related("to_document"):
         if ref.to_document_id in visible_doc_ids:
             explicit.append(
                 {
@@ -149,9 +152,19 @@ def find_related_documents(principal, investigation, args: dict) -> dict:
                     ),
                 }
             )
-    for ref in DocumentReference.objects.filter(to_document=document).select_related(
-        "from_version__document"
-    ):
+            first = Chunk.objects.filter(version=ref.from_version).order_by("position").first()
+            if first is not None:
+                evidence.append(
+                    (
+                        str(first.id),
+                        str(ref.from_version_id),
+                        first.locator.get("start_char", 0),
+                        first.locator.get("end_char", 0),
+                    )
+                )
+    for ref in DocumentReference.objects.filter(
+        to_document=document, from_version_id__in=visible_version_ids
+    ).select_related("from_version__document"):
         src = ref.from_version.document
         if src.id in visible_doc_ids:
             explicit.append(
@@ -163,16 +176,26 @@ def find_related_documents(principal, investigation, args: dict) -> dict:
                     "source_url": safe_source_url(src.source_url, src.source_type),
                 }
             )
+            first = Chunk.objects.filter(version=ref.from_version).order_by("position").first()
+            if first is not None:
+                evidence.append(
+                    (
+                        str(first.id),
+                        str(ref.from_version_id),
+                        first.locator.get("start_char", 0),
+                        first.locator.get("end_char", 0),
+                    )
+                )
     embedder = get_embedder()
     own = list(
         Embedding.objects.filter(
             chunk__document=document,
+            chunk__version_id__in=visible_version_ids,
             model_id=embedder.model_id,
             model_version=embedder.model_version,
         ).values_list("vec", flat=True)[:20]
     )
     similar = []
-    evidence = []
     if own:
         dim = len(own[0])
         centroid = [sum(float(v[i]) for v in own) / len(own) for i in range(dim)]
@@ -181,7 +204,7 @@ def find_related_documents(principal, investigation, args: dict) -> dict:
                 organization_id=principal.organization_id,
                 model_id=embedder.model_id,
                 model_version=embedder.model_version,
-                chunk__version_id__in=visible.values("id"),
+                chunk__version_id__in=visible_version_ids,
             )
             .exclude(chunk__document=document)
             .annotate(distance=CosineDistance("vec", centroid))
@@ -228,7 +251,8 @@ def find_related_documents(principal, investigation, args: dict) -> dict:
 
 
 def draft_knowledge_record(principal, investigation, args: dict) -> dict:
-    """Create a CANDIDATE record from evidence the agent actually received. Draft only."""
+    """Create a CANDIDATE record from evidence the agent actually received. Draft only.
+    The record depends on every revision the investigation saw, cited or not."""
     from mcp_server.api import ToolError
 
     topic = str(args.get("topic") or "").strip()
@@ -256,6 +280,12 @@ def draft_knowledge_record(principal, investigation, args: dict) -> dict:
     evidence = [
         EvidenceInput(chunk_id=returned[i], role=str(roles.get(i, "decision"))) for i in ids
     ]
+    supplied = [
+        str(v)
+        for v in InvestigationEvidence.objects.filter(investigation=investigation)
+        .values_list("version_id", flat=True)
+        .distinct()
+    ]
     record = create_candidate(
         principal,
         title=topic[:300],
@@ -265,6 +295,7 @@ def draft_knowledge_record(principal, investigation, args: dict) -> dict:
         rationale=_safe(str(args.get("rationale") or ""))[:4000] or None,
         alternatives=args.get("alternatives") or None,
         approval_status=DecisionRecord.APPROVAL_UNKNOWN,
+        supplied_version_ids=supplied,
     )
     return {
         "record_id": str(record.id),

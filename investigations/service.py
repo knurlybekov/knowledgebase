@@ -402,6 +402,20 @@ def _complete(org_id, row: Investigation, client: RunnerClient, terminal_event: 
         with with_org(org_id):
             returned = set(_returned_evidence_ids(row.id))
             parsed = validate_citations(parse_result(text), returned)
+            # Publication-time recheck (D6): every supplied revision must still be
+            # visible to the owner, or the result is saved without text.
+            owner = Principal(
+                user=row.user, organization=row.organization, role="member", investigation=row
+            )
+            supplied = list(
+                InvestigationEvidence.objects.filter(investigation_id=row.id)
+                .values_list("version_id", flat=True)
+                .distinct()
+            )
+            if not versions_visible(owner, supplied):
+                Investigation.objects.filter(
+                    id=row.id, status=Investigation.STATUS_RUNNING, attempt=row.attempt
+                ).update(content_state=Investigation.CONTENT_PURGED, result=None)
             result = {
                 "answer": parsed.answer,
                 "evidence_summary": parsed.evidence_summary,
@@ -411,29 +425,40 @@ def _complete(org_id, row: Investigation, client: RunnerClient, terminal_event: 
                 "unsupported_statements": parsed.unsupported_statements,
                 "cited_evidence_ids": parsed.cited_evidence_ids,
                 "malformed": parsed.malformed,
+                "answer_verified": parsed.answer_verified,
                 "citations": _citations_for(row.id, parsed.cited_evidence_ids),
             }
-            done = _transition(
-                row.id,
-                from_statuses=[Investigation.STATUS_RUNNING],
-                attempt=row.attempt,
-                status=Investigation.STATUS_COMPLETED,
-                finished_at=timezone.now(),
-                result=result,
-                usage=usage,
-                content_state=Investigation.CONTENT_PRESENT,
-            )
-            if not done:
-                # Purged during generation, or no longer running: keep purged, write no text.
-                done_purged = Investigation.objects.filter(
+            # Text is saved only while the row is still present: a purge during
+            # generation wins and the row completes without text.
+            done = (
+                Investigation.objects.filter(
                     id=row.id,
                     status=Investigation.STATUS_RUNNING,
                     attempt=row.attempt,
-                    content_state=Investigation.CONTENT_PURGED,
+                    content_state=Investigation.CONTENT_PRESENT,
                 ).update(
-                    status=Investigation.STATUS_COMPLETED, finished_at=timezone.now(), usage=usage
+                    status=Investigation.STATUS_COMPLETED,
+                    finished_at=timezone.now(),
+                    result=result,
+                    usage=usage,
                 )
-                done = bool(done_purged)
+                == 1
+            )
+            if not done:
+                done = (
+                    Investigation.objects.filter(
+                        id=row.id,
+                        status=Investigation.STATUS_RUNNING,
+                        attempt=row.attempt,
+                        content_state=Investigation.CONTENT_PURGED,
+                    ).update(
+                        status=Investigation.STATUS_COMPLETED,
+                        finished_at=timezone.now(),
+                        usage=usage,
+                        result=None,
+                    )
+                    == 1
+                )
             if done:
                 _revoke_tokens(row.id)
                 fresh = Investigation.objects.get(id=row.id)
@@ -591,19 +616,32 @@ def reap(org_id, client: RunnerClient | None = None) -> dict:
             _complete(org_id, row, client, {"outcome": "completed"})
             counts["recovered"] += 1
             continue
-        try:
-            client.cancel(row.run_key)
-        except RunnerError:
-            pass
+        # Claim the recovery conditionally: the row must still be the stale
+        # dispatched/running attempt we observed. A cancel, an offboarding or a
+        # late completion in the meantime wins and nothing is touched.
         with with_org(org_id):
-            _revoke_tokens(row.id)
-            Investigation.objects.filter(id=row.id, attempt=row.attempt).update(
+            claimed = Investigation.objects.filter(
+                id=row.id,
+                attempt=row.attempt,
+                status__in=[Investigation.STATUS_DISPATCHED, Investigation.STATUS_RUNNING],
+                heartbeat_at__lt=stale_heartbeat,
+            ).update(
                 status=Investigation.STATUS_QUEUED,
                 attempt=F("attempt") + 1,
                 run_key=f"{row.id}:{row.attempt + 1}",
                 last_event_seq=0,
                 status_detail="recovered after a worker crash",
             )
+            if claimed:
+                CapabilityToken.objects.filter(
+                    investigation_id=row.id, attempt=row.attempt, revoked_at__isnull=True
+                ).update(revoked_at=timezone.now())
+        if not claimed:
+            continue
+        try:
+            client.cancel(row.run_key)
+        except RunnerError:
+            pass
         run_investigation.delay(str(org_id), str(row.id))
         counts["requeued"] += 1
     return counts
@@ -624,7 +662,16 @@ def purge_investigations_for_version(version) -> int:
         row.activity = [{k: v for k, v in e.items() if k != "name"} for e in (row.activity or [])]
         row.content_state = Investigation.CONTENT_PURGED
         row.save(update_fields=["result", "activity", "content_state"])
-    _schedule_runner_erase([r.run_key for r in rows])
+    # Runner records are erased only for terminal investigations; a running one
+    # acknowledges (erases) its own record when it completes without text.
+    keys = [
+        f"{r.id}:{n}"
+        for r in rows
+        if r.status in Investigation.TERMINAL
+        for n in range(1, (r.attempt or 1) + 1)
+    ]
+    if keys:
+        _schedule_runner_erase(keys)
     return len(rows)
 
 

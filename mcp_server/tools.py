@@ -79,21 +79,20 @@ def get_document(principal, investigation, args: dict) -> dict:
     end = min(len(text), start + DOCUMENT_WINDOW_CHARS)
     window = sanitize(text[start:end])
     chunks = list(Chunk.objects.filter(version=version, is_active=True).order_by("position"))
+    # Evidence: only chunks whose text overlaps the returned window. Chunk
+    # coordinates are section-relative, so the overlap is computed on the text.
     evidence = []
     evidence_ids = []
     for c in chunks:
-        # Chunk text is a window over its section; report it as evidence when it overlaps the returned window.
-        evidence.append(
-            (
-                str(c.id),
-                str(version.id),
-                c.locator.get("start_char", 0),
-                c.locator.get("end_char", 0),
-            )
-        )
-        evidence_ids.append(
-            f"chunk:{c.id}@{version.version_label}[{c.locator.get('start_char', 0)}:{c.locator.get('end_char', 0)}]"
-        )
+        body = c.text.split("\n", 1)[-1] if c.heading_path else c.text
+        probe = body[:80]
+        at = text.find(probe) if probe else -1
+        if at < 0 or at >= end or at + len(body) <= start:
+            continue
+        start_char = c.locator.get("start_char", 0)
+        end_char = c.locator.get("end_char", 0)
+        evidence.append((str(c.id), str(version.id), start_char, end_char))
+        evidence_ids.append(f"chunk:{c.id}@{version.version_label}[{start_char}:{end_char}]")
     return {
         "document_id": str(document.id),
         "title": sanitize(document.title),

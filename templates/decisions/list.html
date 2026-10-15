@@ -6,6 +6,6 @@
 <p class="mb-4 text-sm text-slate-600">Records are visible only when every supporting passage is visible to you. Candidates come from the agent or extraction and become authoritative only after a steward verifies them.</p>
 {% if is_steward and pending %}<p class="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm">{{ pending|length }} record(s) await review.</p>{% endif %}
 <table class="w-full text-sm"><thead><tr class="text-left"><th>Title</th><th>Date</th><th>Status</th><th>Approval</th><th>Origin</th></tr></thead><tbody>
-{% for r in records %}<tr class="border-t"><td class="py-1"><a class="underline" href="{% org_url 'web:decision_detail' r.id %}">{{ r.title }}</a>{% if r.superseded_by %} <span class="text-slate-500">(superseded)</span>{% endif %}</td><td>{{ r.decision_date|default:"unknown" }}</td><td>{{ r.status }}</td><td>{{ r.approval_status }}</td><td>{{ r.origin }}</td></tr>{% empty %}<tr><td colspan="5">No decision records visible to you.</td></tr>{% endfor %}
+{% for r in records %}<tr class="border-t"><td class="py-1"><a class="underline" href="{% org_url 'web:decision_detail' r.id %}">{{ r.title }}</a>{% if r.superseded_by_id %} <span class="text-slate-500">(superseded)</span>{% endif %}</td><td>{{ r.decision_date|default:"unknown" }}</td><td>{{ r.status }}</td><td>{{ r.approval_status }}</td><td>{{ r.origin }}</td></tr>{% empty %}<tr><td colspan="5">No decision records visible to you.</td></tr>{% endfor %}
 </tbody></table>
 {% endblock %}

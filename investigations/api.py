@@ -1,10 +1,12 @@
 """Public surface of the investigations app."""
 
+from .fake_runner import FakeRunner
 from .models import CapabilityToken, Investigation, InvestigationEvidence
 from .results import parse_result, validate_citations
 from .runner_client import RunnerClient, RunnerError, RunState
 from .service import (
     cancel_investigation,
+    cancel_user_investigations,
     execute,
     get_investigation,
     investigator_instructions,
@@ -22,12 +24,14 @@ def org_urlpatterns() -> list:
 
 __all__ = [
     "CapabilityToken",
+    "FakeRunner",
     "Investigation",
     "InvestigationEvidence",
     "RunState",
     "RunnerClient",
     "RunnerError",
     "cancel_investigation",
+    "cancel_user_investigations",
     "execute",
     "get_investigation",
     "investigator_instructions",

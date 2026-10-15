@@ -107,11 +107,17 @@ def revoke_user_links(organization, user) -> int:
 
 
 def revoke_link(link: ConnectorLink) -> None:
-    """User-initiated unlink."""
+    """User-initiated unlink: grants go, and the owner's open investigations are
+    cancelled with their capability tokens (their evidence base changed)."""
+    from investigations.api import cancel_user_investigations
     from knowledge.api import revoke_link_grants
 
     set_link_status(link, ConnectorLink.STATUS_REVOKED, "unlinked")
     revoke_link_grants(link, "link_revoked")
+    with with_org(link.organization_id, link.user_id):
+        from organizations.api import Organization
+
+        cancel_user_investigations(Organization.objects.get(id=link.organization_id), link.user)
 
 
 __all__ = [
