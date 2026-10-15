@@ -1,0 +1,5 @@
+# Replace example.org with the public hostname. Caddy obtains TLS certificates itself.
+example.org {
+    encode zstd gzip
+    reverse_proxy web:8000
+}

@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local configuration and data. Never commit secrets.
+.env
+.env.*
+!.env.example
+db.sqlite3
+media/
+staticfiles/
+eval/results/*.local.md
+
+# IDE
+.idea/
+.vscode/
+
+# Tailwind build output (rebuilt by `make tailwind-build`)
+web/static/css/dist/

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load org_tags %}
+{% block content %}
+<h1 class="mb-4 text-xl font-semibold">{{ organization.name }}</h1>
+<ul class="grid gap-3 sm:grid-cols-2">
+  <li class="rounded border bg-white p-4"><a class="font-medium underline" href="{% org_url 'web:search' %}">Search</a><p class="text-sm text-slate-600">Quick Search with citations, or a Deep Investigation.</p></li>
+  <li class="rounded border bg-white p-4"><a class="font-medium underline" href="{% org_url 'web:decisions' %}">Decision history</a><p class="text-sm text-slate-600">Documented decisions, alternatives and later changes.</p></li>
+  <li class="rounded border bg-white p-4"><a class="font-medium underline" href="{% org_url 'web:connectors' %}">Connected accounts</a><p class="text-sm text-slate-600">Link Google Drive or SharePoint. The platform indexes what your account can see.</p></li>
+  {% if membership.role == 'admin' or membership.role == 'steward' %}
+  <li class="rounded border bg-white p-4"><a class="font-medium underline" href="{% org_url 'web:administration' %}">Knowledge administration</a><p class="text-sm text-slate-600">Sync status, failures, pending approvals.</p></li>
+  {% endif %}
+</ul>
+{% endblock %}

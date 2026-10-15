@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-4 text-xl font-semibold">Your organizations</h1>
+{% if memberships %}
+<ul class="space-y-2">
+  {% for m in memberships %}<li><a class="underline" href="/o/{{ m.organization.slug }}/">{{ m.organization.name }}</a> <span class="text-sm text-slate-500">({{ m.get_role_display }})</span></li>{% endfor %}
+</ul>
+{% else %}<p>You are not a member of any organization yet. Ask an administrator to add you.</p>{% endif %}
+{% endblock %}

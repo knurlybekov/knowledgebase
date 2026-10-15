@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Log in · Knowledgebase{% endblock %}
+{% block content %}
+<h1 class="mb-4 text-xl font-semibold">Log in</h1>
+<form method="post" class="max-w-sm space-y-3">
+  {% csrf_token %}
+  {% if form.errors %}<p class="text-sm text-red-700" role="alert">The email or password is not correct.</p>{% endif %}
+  <label class="block text-sm">Email<input class="mt-1 w-full rounded border px-2 py-1" type="email" name="username" autocomplete="username" required></label>
+  <label class="block text-sm">Password<input class="mt-1 w-full rounded border px-2 py-1" type="password" name="password" autocomplete="current-password" required></label>
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="rounded bg-slate-900 px-3 py-1.5 text-white" type="submit">Log in</button>
+  <p class="text-sm"><a class="underline" href="{% url 'accounts:password_reset' %}">Forgot your password?</a></p>
+</form>
+{% endblock %}

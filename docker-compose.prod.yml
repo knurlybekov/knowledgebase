@@ -1,0 +1,129 @@
+# Production shape. Only `caddy` publishes ports; everything else is internal.
+# Copy .env.example to .env with real values first.
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: kb
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: kb
+      KB_MIGRATOR_PASSWORD: ${KB_MIGRATOR_PASSWORD:?set KB_MIGRATOR_PASSWORD}
+      KB_APP_PASSWORD: ${KB_APP_PASSWORD:?set KB_APP_PASSWORD}
+    volumes:
+      - kb-postgres-data:/var/lib/postgresql/data
+      - ./scripts/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kb -d kb"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    deploy: {resources: {limits: {memory: 2g}}}
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    volumes: [kb-redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  web:
+    build: .
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://kb_app:${KB_APP_PASSWORD}@postgres:5432/kb
+      MIGRATOR_DATABASE_URL: postgres://kb_migrator:${KB_MIGRATOR_PASSWORD}@postgres:5432/kb
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/healthz\")'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy: {resources: {limits: {memory: 1g, cpus: "1.0"}}}
+
+  worker:
+    build: .
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://kb_app:${KB_APP_PASSWORD}@postgres:5432/kb
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    entrypoint: []
+    command: ["celery", "-A", "knowledgebase", "worker", "-l", "INFO", "--concurrency", "4", "--max-tasks-per-child", "200"]
+    depends_on: {web: {condition: service_healthy}}
+    restart: unless-stopped
+    deploy: {resources: {limits: {memory: 2g, cpus: "2.0"}}}
+
+  beat:
+    build: .
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://kb_app:${KB_APP_PASSWORD}@postgres:5432/kb
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    entrypoint: []
+    command: ["celery", "-A", "knowledgebase", "beat", "-l", "INFO"]
+    depends_on: {web: {condition: service_healthy}}
+    restart: unless-stopped
+
+  knowledge-mcp:
+    build: .
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgres://kb_app:${KB_APP_PASSWORD}@postgres:5432/kb
+    entrypoint: []
+    command: ["python", "manage.py", "run_mcp_server", "--host", "0.0.0.0", "--port", "8710"]
+    depends_on: {web: {condition: service_healthy}}
+    networks: [default, agents]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8710/healthz\")'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  hermes-agent:
+    build: ./hermes
+    env_file: [.env]
+    environment:
+      RUNNER_PORT: "8700"
+      KNOWLEDGE_MCP_URL: http://knowledge-mcp:8710/mcp
+    volumes: [kb-hermes-data:/opt/data]
+    networks: [agents]
+    depends_on: {knowledge-mcp: {condition: service_healthy}}
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8700/health\")'"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy: {resources: {limits: {memory: 2g, cpus: "2.0"}}}
+
+  caddy:
+    image: caddy:2-alpine
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - kb-caddy-data:/data
+    depends_on: [web]
+    restart: unless-stopped
+
+networks:
+  default: {}
+  # hermes-agent sees only knowledge-mcp (and the internet for its LLM provider).
+  agents: {internal: false}
+
+volumes:
+  kb-postgres-data:
+  kb-redis-data:
+  kb-hermes-data:
+  kb-caddy-data:

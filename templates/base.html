@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Knowledgebase{% endblock %}</title>
+  {% load static tailwind_cli %}
+  {% tailwind_css %}
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+</head>
+<body class="min-h-full text-slate-900">
+<a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:p-2 focus:bg-white">Skip to content</a>
+<header class="border-b bg-white">
+  <nav class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3" aria-label="Main">
+    <a href="/" class="font-semibold">Knowledgebase{% if organization %} · {{ organization.name }}{% endif %}</a>
+    {% load org_tags %}
+    <ul class="flex items-center gap-4 text-sm">
+      {% if organization %}
+        <li><a class="hover:underline" href="{% org_url 'web:home' %}">Home</a></li>
+        <li><a class="hover:underline" href="{% org_url 'web:search' %}">Search</a></li>
+        <li><a class="hover:underline" href="{% org_url 'web:investigations' %}">Investigations</a></li>
+        <li><a class="hover:underline" href="{% org_url 'web:decisions' %}">Decisions</a></li>
+        {% if membership.role == 'admin' or membership.role == 'steward' %}
+          <li><a class="hover:underline" href="{% org_url 'web:administration' %}">Administration</a></li>
+        {% endif %}
+      {% endif %}
+      {% if user.is_authenticated %}
+        <li class="text-slate-500">{{ user.email }}</li>
+        <li><form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="hover:underline" type="submit">Log out</button></form></li>
+      {% endif %}
+    </ul>
+  </nav>
+</header>
+<main id="main" class="mx-auto max-w-6xl px-4 py-6">
+  {% if messages %}
+    <ul class="mb-4 space-y-2" role="status">
+      {% for message in messages %}<li class="rounded border bg-white px-3 py-2 text-sm">{{ message }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

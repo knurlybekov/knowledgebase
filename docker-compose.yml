@@ -1,0 +1,55 @@
+# Local development services. `make up` starts postgres and redis.
+# worker, beat, knowledge-mcp and hermes-agent run under profiles.
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: kb-postgres
+    environment:
+      POSTGRES_USER: kb
+      POSTGRES_PASSWORD: kb
+      POSTGRES_DB: kb
+      KB_MIGRATOR_PASSWORD: kb_migrator
+      KB_APP_PASSWORD: kb_app
+    ports:
+      - "127.0.0.1:5435:5432"
+    volumes:
+      - kb-postgres-data:/var/lib/postgresql/data
+      - ./scripts/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kb -d kb"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: kb-redis
+    ports:
+      - "127.0.0.1:6381:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  hermes-agent:
+    build:
+      context: ./hermes
+    container_name: kb-hermes-agent
+    profiles: ["hermes"]
+    env_file: [.env]
+    environment:
+      RUNNER_PORT: "8700"
+      KNOWLEDGE_MCP_URL: http://host.docker.internal:8710/mcp
+    volumes:
+      - kb-hermes-data:/opt/data
+    # Internal only: no published port. The backend reaches it on the compose network.
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8700/health\")'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  kb-postgres-data:
+  kb-hermes-data:
