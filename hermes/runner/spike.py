@@ -90,7 +90,7 @@ def main() -> int:
             pass
     rows.append(
         (
-            "chat -q --format stream-json without provider key (expect init+result, exit 1)",
+            "chat -q --format stream-json without provider key and unreachable MCP (expect init+result, exit 1, fail closed)",
             sj.returncode,
             f"event types={kinds} stderr={sj.stderr.strip()[-300:]}",
         )
@@ -137,12 +137,13 @@ def main() -> int:
             urllib.request.urlopen("http://127.0.0.1:8799/selfcheck/seen", timeout=2).read()
         )
         gw = runs._gateway_pids_for_home(str(home2))
-        stopped = runs.stop_gateway_for_home(str(home2))
+        runs.stop_gateway_for_home(str(home2))
+        after_stop = len(runs._gateway_pids_for_home(str(home2)))
         rows.append(
             (
                 "MCP handshake with ${KNOWLEDGE_MCP_TOKEN} (self-check server; model call expected to fail without a real key)",
                 hs.returncode,
-                f"auth_ok={seen.get('auth_ok')} gateway_procs_after_run={len(gw)} stopped={stopped} stderr={hs.stderr.strip()[-200:]}",
+                f"auth_ok={seen.get('auth_ok')} gateway_procs_after_run={len(gw)} gateway_procs_after_stop={after_stop} stderr={hs.stderr.strip()[-200:]}",
             )
         )
     finally:

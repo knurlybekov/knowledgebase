@@ -91,10 +91,11 @@ Verified in the pinned source (`hermes_cli/_parser.py`, `hermes_cli/stream_json.
 | hermes --version | 0 | Hermes Agent vunknown (2026.9.24) Install directory: /opt/hermes Install method: docker Python: 3.14.7 OpenAI SDK: 2.24.0 |
 | chat --help flags present | 0 | `--toolsets`, `--max-turns`, `--format`, `-q`, `--oneshot`, `--ignore-user-config` all present |
 | config get memory.memory_enabled (per-run HERMES_HOME honored) | 0 | `false` (read from the generated config in the run directory) |
-| chat -q --format stream-json without provider key | 1 | event types `['system', 'result']`; stderr ends with `Error: credentials or agent init failed` |
+| chat -q --format stream-json without provider key and unreachable MCP | 1 | event types `['system', 'result']`; `Error: invalid_params` (the `mcp-knowledge` toolset never registered; the gateway refuses the session: fail closed) |
+| MCP handshake with `${KNOWLEDGE_MCP_TOKEN}` against the self-check MCP server (fake provider key) | 1 | `auth_ok=True` (the interpolated bearer reached the MCP server during the handshake); the run failed only at the model call ("Anthropic rejected your API key"); `gateway_procs_after_run=1`, `gateway_procs_after_stop=0` (the runner's gateway stop works) |
 | attestation against self-check MCP (live model) | skipped | `ANTHROPIC_API_KEY` not set in this session |
 
-Not verified in this session (needs a provider key): a full run with tool calls through the MCP server, the exact `tool_use` names Hermes reports for MCP tools (expected `mcp_knowledge_search_knowledge`), and the attestation. The runner refuses runs until the attestation passes, so a deployment without a key, or with a model configuration Hermes rejects, fails closed with HTTP 503 from `POST /runs`.
+Not verified in this session (needs a provider key): a full run with tool calls through the MCP server, the exact `tool_use` names Hermes reports for MCP tools (expected `mcp_knowledge_search_knowledge`), and the attestation (benign plus adversarial prompt). The runner refuses runs until the attestation passes, so a deployment without a key, or with a model configuration Hermes rejects, fails closed with HTTP 503 from `POST /runs`.
 
 ## Running it
 
