@@ -212,7 +212,9 @@ def judge_name() -> str:
     judge = os.environ.get("EVAL_JUDGE", "")
     if judge == "anthropic" and settings.ANTHROPIC_API_KEY:
         return "anthropic LLM judge"
-    return "ordered-content-word proxy" + (" (EVAL_JUDGE set but no key: judge not run)" if judge else "")
+    return "ordered-content-word proxy" + (
+        " (EVAL_JUDGE set but no key: judge not run)" if judge else ""
+    )
 
 
 def run_all(principal) -> tuple[list[QueryResult], Path]:

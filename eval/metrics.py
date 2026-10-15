@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import re
 from dataclasses import dataclass, field
 
@@ -64,37 +65,43 @@ def _negated(text: str) -> bool:
     return bool(_NEG.search(text.lower()))
 
 
+def _ordered(words: list[str], sentence_words: list[str]) -> bool:
+    pos = 0
+    for w in words:
+        try:
+            pos = sentence_words.index(w, pos) + 1
+        except ValueError:
+            return False
+    return True
+
+
 def claim_supported(claim_text: str, evidence_texts: list[str]) -> bool:
     """CI proxy for support (labeled as a proxy in the report). A claim is
-    supported when one evidence sentence contains it as a normalized substring,
-    or when every content word of the claim appears in that sentence in the same
-    order, with the same negation polarity and the same numbers. Word order
-    rejects reversed relations; the all-words rule rejects added qualifiers. An
-    LLM judge (EVAL_JUDGE) replaces this when configured."""
+    supported when the evidence contains it as a normalized substring, or when
+    every content word of the claim appears in one evidence sentence (or two
+    consecutive sentences) in the same order, with the same negation polarity
+    and the same numbers. Word order rejects reversed relations; the all-words
+    rule rejects added qualifiers. An LLM judge (EVAL_JUDGE) replaces this when
+    configured."""
     claim = " ".join(claim_text.lower().split()).rstrip(".")
     if not claim:
         return False
     words = [w for w in _WORD.findall(claim) if w not in _STOP_PROXY]
     numbers = set(_NUM.findall(claim))
     for text in evidence_texts:
-        for sentence in _SENT.split(text):
-            low = " ".join(sentence.lower().split())
-            if not low:
-                continue
-            if claim in low:
-                return True
-            if not words:
-                continue
-            sentence_words = _WORD.findall(low)
-            pos = 0
-            ordered = True
-            for w in words:
-                try:
-                    pos = sentence_words.index(w, pos) + 1
-                except ValueError:
-                    ordered = False
-                    break
-            if ordered and _negated(claim) == _negated(low) and numbers <= set(_NUM.findall(low)):
+        low = " ".join(text.lower().split())
+        if claim in low:
+            return True
+        if not words:
+            continue
+        sentences = [x for x in _SENT.split(text.lower()) if x.strip()]
+        windows = sentences + [a + " " + b for a, b in itertools.pairwise(sentences)]
+        for window in windows:
+            if (
+                _ordered(words, _WORD.findall(window))
+                and _negated(claim) == _negated(window)
+                and numbers <= set(_NUM.findall(window))
+            ):
                 return True
     return False
 

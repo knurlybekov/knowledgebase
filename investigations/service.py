@@ -542,6 +542,7 @@ def _citations_for(investigation_id, evidence_ids: list[str]) -> list[dict]:
     for e in rows:
         eid = f"chunk:{e.chunk_id}@{e.version.version_label}[{e.span_start}:{e.span_end}]"
         if eid in wanted:
+            base = e.chunk.locator.get("start_char", 0)
             out.append(
                 {
                     "evidence_id": eid,
@@ -553,9 +554,9 @@ def _citations_for(investigation_id, evidence_ids: list[str]) -> list[dict]:
                     "source_type": e.chunk.document.source_type,
                     "version_label": e.version.version_label,
                     "locator": e.chunk.locator,
-                    "excerpt": e.chunk.text[e.span_start : e.span_end][:500]
-                    if e.span_end
-                    else e.chunk.text[:500],
+                    # Spans are chunk-text offsets added to the locator start_char
+                    # (mcp_server.tools.delivered_evidence): this is the delivered text.
+                    "excerpt": e.chunk.text[e.span_start - base : e.span_end - base],
                 }
             )
     return out
