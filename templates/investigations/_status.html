@@ -1,0 +1,26 @@
+{% load org_tags %}
+<div id="status" {% if not terminal %}hx-get="{% org_url 'web:investigation_detail' inv.id %}" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %} role="status" aria-live="polite">
+  <div class="mb-4 flex items-center gap-3 text-sm">
+    <span class="rounded border px-2 py-0.5">{{ inv.status }}</span>
+    <span class="text-slate-500">attempt {{ inv.attempt }} · {{ inv.tool_calls_used }}/{{ inv.limits.max_tool_calls }} tool calls · {{ inv.output_chars_used }} chars</span>
+    {% if not terminal %}<form method="post" action="{% org_url 'web:investigation_cancel' inv.id %}" hx-post="{% org_url 'web:investigation_cancel' inv.id %}" hx-target="#status" hx-swap="outerHTML">{% csrf_token %}<button class="underline text-red-700" type="submit">Cancel</button></form>{% endif %}
+  </div>
+  {% if inv.metadata_only %}<p class="text-sm text-slate-500">Administrators see status only.</p>
+  {% elif inv.withheld or inv.content_state == 'purged' %}<p>The result is no longer available: a document it relied on is not visible to you or was removed.</p>
+  {% elif inv.result %}
+    <section class="mb-4 rounded border bg-white p-4"><h2 class="font-semibold">Answer</h2><div class="whitespace-pre-line">{{ inv.result.answer }}</div>
+      {% if inv.result.malformed %}<p class="text-sm text-amber-700">The agent did not use the expected structure; statements could not be verified.</p>{% endif %}</section>
+    <section class="mb-4 rounded border bg-white p-4"><h2 class="font-semibold">Statements with evidence</h2>
+      <ul class="list-disc pl-5">{% for s in inv.result.statements %}<li>{{ s.text }} <span class="text-xs text-slate-500">{% for e in s.evidence_ids %}<code>{{ e|truncatechars:24 }}</code> {% endfor %}</span></li>{% empty %}<li>None verified.</li>{% endfor %}</ul>
+      {% if inv.result.unsupported_statements %}<h3 class="mt-3 font-medium text-red-800">Statements without verified evidence (not findings)</h3><ul class="list-disc pl-5 text-sm">{% for u in inv.result.unsupported_statements %}<li>{{ u }}</li>{% endfor %}</ul>{% endif %}</section>
+    <section class="mb-4 grid gap-4 sm:grid-cols-2">
+      <div class="rounded border bg-white p-4"><h2 class="font-semibold">Conflicting evidence</h2><ul class="list-disc pl-5 text-sm">{% for c in inv.result.conflicts %}<li>{{ c }}</li>{% empty %}<li>None found.</li>{% endfor %}</ul></div>
+      <div class="rounded border bg-white p-4"><h2 class="font-semibold">Open questions</h2><ul class="list-disc pl-5 text-sm">{% for q in inv.result.open_questions %}<li>{{ q }}</li>{% empty %}<li>None.</li>{% endfor %}</ul></div>
+    </section>
+    <section class="mb-4 rounded border bg-white p-4"><h2 class="font-semibold">Sources</h2>
+      <ul class="space-y-2 text-sm">{% for c in inv.result.citations %}<li><a class="underline" href="{{ c.source_url }}" rel="noopener" target="_blank">{{ c.title|default:c.document_id }}</a> <span class="text-slate-500">{{ c.source_type }} · {{ c.version_label }}</span><p class="text-slate-700">{{ c.excerpt }}</p></li>{% empty %}<li>No cited sources.</li>{% endfor %}</ul></section>
+  {% elif terminal %}<p class="text-sm">The investigation ended with status <strong>{{ inv.status }}</strong>{% if inv.status_detail %}: {{ inv.status_detail }}{% endif %}.</p>
+  {% else %}<p class="text-sm">Running…</p>{% endif %}
+  <details class="text-sm"><summary class="cursor-pointer">Agent activity ({{ inv.activity|length }} events)</summary>
+    <ul class="mt-2 list-disc pl-5">{% for a in inv.activity %}<li>{{ a.type }}{% if a.subtype %} {{ a.subtype }}{% endif %}{% if a.name %} · {{ a.name }}{% endif %}{% if a.duration_ms %} · {{ a.duration_ms }} ms{% endif %}{% if a.is_error %} · error{% endif %}</li>{% endfor %}</ul></details>
+</div>

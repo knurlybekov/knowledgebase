@@ -32,7 +32,7 @@ def _org_scoped_tables():
     out = []
     for model in apps.get_models():
         names = {f.name for f in model._meta.get_fields() if hasattr(f, "name")}
-        if "organization" in names:
+        if "organization" in names and model._meta.db_table not in NO_RLS_TABLES:
             out.append(model._meta.db_table)
     return out
 

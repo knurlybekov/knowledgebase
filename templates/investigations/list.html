@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load org_tags %}
+{% block title %}Investigations · {{ organization.name }}{% endblock %}
+{% block content %}
+<h1 class="mb-3 text-xl font-semibold">Deep investigations</h1>
+{% if hermes_enabled %}
+<form method="post" action="{% org_url 'web:investigation_start' %}" class="mb-6 flex gap-2">
+  {% csrf_token %}
+  <input class="w-full rounded border px-3 py-2" type="text" name="q" maxlength="2000" required placeholder="Why did we change our cloud hosting provider?">
+  <button class="rounded bg-slate-900 px-3 py-1.5 text-white" type="submit">Investigate</button>
+</form>
+{% else %}<p class="mb-6 text-sm text-amber-700">Deep Investigation is disabled on this deployment.</p>{% endif %}
+<table class="w-full text-sm"><thead><tr class="text-left"><th>Started</th><th>Question</th><th>Status</th></tr></thead><tbody>
+{% for r in rows %}<tr class="border-t"><td class="py-1 whitespace-nowrap">{{ r.created_at|date:"Y-m-d H:i" }}</td><td><a class="underline" href="{% org_url 'web:investigation_detail' r.id %}">{{ r.question|truncatechars:120 }}</a></td><td>{{ r.status }}</td></tr>{% empty %}<tr><td colspan="3">No investigations yet.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}
