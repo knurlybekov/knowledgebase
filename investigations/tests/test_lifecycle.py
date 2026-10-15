@@ -293,3 +293,20 @@ def test_views_list_detail_json_and_cancel(monkeypatch, settings):
     assert c2.get(f"/o/{org.slug}/api/v1/investigations/{inv_id}").status_code == 404
     settings.HERMES_ENABLED = False
     assert c.post(f"/o/{org.slug}/investigations/start/", {"q": "x"}).status_code == 409
+
+
+def test_agent_can_only_draft_candidates(monkeypatch):
+    from decisions.api import DecisionRecord
+
+    runner = FakeRunner("draft", queries=["hosting decision", "alternative"], read_first=False)
+    org, user, *_ = setup(monkeypatch, runner)
+    inv = start(org, user, monkeypatch)
+    assert run_sync(org, inv.id, runner) == "completed"
+    with with_org(org.id):
+        records = list(DecisionRecord.objects.filter(organization=org))
+        assert len(records) == 1
+        assert (
+            records[0].status == "candidate"
+            and records[0].origin == "agent"
+            and records[0].verified_by is None
+        )

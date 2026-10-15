@@ -118,6 +118,18 @@ class FakeRunner:
                     {"document_id": payload["results"][0]["document_id"]},
                     get_document,
                 )
+        if self.behavior == "draft" and evidence_ids:
+            from decisions.api import draft_knowledge_record
+
+            payload = self._tool(
+                run,
+                "draft_knowledge_record",
+                {"topic": "Hosting provider decision history", "evidence_ids": evidence_ids[:3]},
+                draft_knowledge_record,
+            )
+            statements.append(
+                (f"A candidate record was drafted ({payload.get('status')}).", [evidence_ids[0]])
+            )
         if self.behavior == "invent":
             statements.append(
                 (

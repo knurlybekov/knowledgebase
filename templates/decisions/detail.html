@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load org_tags %}
+{% block title %}{{ record.title }} · {{ organization.name }}{% endblock %}
+{% block content %}
+<h1 class="mb-1 text-xl font-semibold">{{ record.title }}</h1>
+<p class="mb-4 text-sm text-slate-600">Status <strong>{{ record.status }}</strong> · approval {{ record.approval_status }} · origin {{ record.origin }} · date {{ record.decision_date|default:"unknown" }}{% if record.verified_by %} · verified by {{ record.verified_by.email }} on {{ record.verified_at|date:"Y-m-d" }}{% endif %}</p>
+{% if record.description %}<p class="mb-4">{{ record.description }}</p>{% endif %}
+{% if record.superseded_by %}<p class="mb-4 text-sm">Superseded by <a class="underline" href="{% org_url 'web:decision_detail' record.superseded_by.id %}">{{ record.superseded_by.title }}</a>.</p>{% endif %}
+
+<h2 class="mb-2 font-semibold">Timeline</h2>
+<ol class="mb-6 space-y-3">
+{% for stage, data in stages %}
+  <li class="rounded border bg-white p-3">
+    <div class="flex justify-between"><span class="font-medium capitalize">{{ stage }}</span><span class="text-xs {% if data.state == 'unknown' %}text-amber-700{% else %}text-slate-500{% endif %}">{{ data.state }}</span></div>
+    {% for item in data.items %}<blockquote class="mt-2 border-l-2 pl-3 text-sm text-slate-700">{{ item.excerpt|default:"(excerpt purged)" }}{% if item.title %}<footer class="text-xs text-slate-500">{{ item.title }} · {{ item.version_label }}</footer>{% endif %}</blockquote>{% empty %}<p class="mt-1 text-sm text-slate-500">The evidence does not establish this stage.</p>{% endfor %}
+  </li>
+{% endfor %}
+</ol>
+{% if record.alternatives %}<h2 class="mb-2 font-semibold">Alternatives recorded</h2><ul class="mb-6 list-disc pl-5 text-sm">{% for a in record.alternatives %}<li>{{ a.text|default:a }}</li>{% endfor %}</ul>{% endif %}
+
+{% if is_steward %}
+<h2 class="mb-2 font-semibold">Steward actions</h2>
+<form method="post" action="{% org_url 'web:decision_transition' record.id %}" class="flex flex-wrap items-center gap-2 text-sm">
+  {% csrf_token %}
+  {% if record.status == 'candidate' %}<button class="rounded border bg-white px-3 py-1" name="to" value="draft">Accept as draft</button>{% endif %}
+  {% if record.status == 'draft' %}<button class="rounded bg-slate-900 px-3 py-1 text-white" name="to" value="verified">Verify</button><button class="rounded border bg-white px-3 py-1" name="to" value="candidate">Send back</button>{% endif %}
+  {% if record.status == 'verified' %}<label>Superseded by <select name="superseded_by" class="rounded border px-2 py-1">{% for s in superseders %}<option value="{{ s.id }}">{{ s.title }}</option>{% endfor %}</select></label><button class="rounded border bg-white px-3 py-1" name="to" value="superseded">Mark superseded</button>{% endif %}
+</form>
+{% endif %}
+{% endblock %}

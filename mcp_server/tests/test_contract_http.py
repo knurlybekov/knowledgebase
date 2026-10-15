@@ -86,7 +86,13 @@ def test_tools_are_served_over_streamable_http_with_bearer():
         server.should_exit = True
         thread.join(timeout=10)
 
-    assert out["tools"] == ["get_document", "search_knowledge"]
+    assert out["tools"] == [
+        "draft_knowledge_record",
+        "find_related_documents",
+        "get_document",
+        "search_knowledge",
+        "trace_decision",
+    ]
     payload = out["payload"]
     payload = payload.get("result", payload)
     assert payload["results"] and payload["results"][0]["title"] == "gdrive:vac"
