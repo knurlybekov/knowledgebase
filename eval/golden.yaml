@@ -1,0 +1,39 @@
+# Golden queries for the synthetic corpus. relevant: source ids whose passages
+# answer the question. mode: quick (RAG) or deep (investigation). claim_terms:
+# words that a correct grounded answer must take from the evidence.
+queries:
+  - id: vacation-days
+    question: How many vacation days do employees accrue each year?
+    mode: quick
+    relevant: [gdrive:vacation-policy]
+    claim_terms: [fifteen]
+  - id: onboarding-location
+    question: Where is the employee onboarding checklist?
+    mode: quick
+    relevant: [gdrive:onboarding-guide]
+    claim_terms: [checklist]
+  - id: plan-version
+    question: What is the latest approved version of the emergency response plan?
+    mode: quick
+    relevant: [gdrive:emergency-plan-v3]
+    claim_terms: [version]
+  - id: hosting-why
+    question: Why did we change our hosting provider?
+    mode: deep
+    relevant: [gdrive:hosting-decision, gdrive:hosting-revision]
+    claim_terms: [Alpha]
+  - id: hosting-alternatives
+    question: What alternatives were considered before selecting the hosting provider?
+    mode: deep
+    relevant: [gdrive:hosting-alternative, gdrive:hosting-decision]
+    claim_terms: [Beta]
+  - id: hosting-changes
+    question: Which decisions about hosting changed over the last six months?
+    mode: deep
+    relevant: [gdrive:hosting-revision, gdrive:hosting-decision]
+    claim_terms: [Gamma]
+  - id: unanswerable
+    question: What is the parking policy for the Vancouver office?
+    mode: quick
+    relevant: []
+    claim_terms: []

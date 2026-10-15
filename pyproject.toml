@@ -48,6 +48,8 @@ dependencies = [
     "whitenoise>=6.8",
     # Tailwind through the standalone binary; no node_modules in the Django tree.
     "django-tailwind-cli>=4.0",
+    # Golden evaluation queries.
+    "pyyaml>=6.0",
 ]
 
 [dependency-groups]
@@ -90,3 +92,5 @@ ignore = ["RUF012"]
 "hermes/runner/*" = ["E501"]
 "decisions/mcp_tools.py" = ["E501"]
 "decisions/extraction.py" = ["E501"]
+"eval/runner.py" = ["E501"]
+"eval/management/commands/*" = ["E501"]

@@ -4,6 +4,7 @@ only) and keyword leg, fused with reciprocal rank fusion."""
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -41,6 +42,74 @@ class SearchResult:
         start = self.locator.get("start_char", 0)
         end = self.locator.get("end_char", 0)
         return f"chunk:{self.chunk_id}@{self.version_label}[{start}:{end}]"
+
+
+_WORD = re.compile(r"[A-Za-z0-9][A-Za-z0-9'-]{1,}")
+_STOP = {
+    "the",
+    "and",
+    "for",
+    "our",
+    "with",
+    "that",
+    "this",
+    "from",
+    "what",
+    "when",
+    "where",
+    "which",
+    "who",
+    "why",
+    "how",
+    "did",
+    "does",
+    "do",
+    "are",
+    "was",
+    "were",
+    "has",
+    "have",
+    "had",
+    "many",
+    "much",
+    "each",
+    "about",
+    "into",
+    "over",
+    "last",
+    "before",
+    "after",
+    "between",
+    "there",
+    "their",
+    "they",
+    "them",
+    "its",
+    "any",
+    "all",
+    "can",
+    "could",
+    "would",
+    "should",
+    "will",
+    "been",
+    "being",
+    "you",
+    "your",
+    "we",
+    "us",
+}
+
+
+def _or_query(query: str):
+    terms = [w for w in _WORD.findall(query) if w.lower() not in _STOP]
+    if not terms:
+        return None
+    tsquery = None
+    for term in terms[:24]:
+        part = SearchQuery(term, config="english", search_type="plain")
+        tsquery = part if tsquery is None else (tsquery | part)
+    return tsquery
 
 
 def _visible_chunks(principal, source_types):
@@ -84,15 +153,19 @@ def _search(principal, query: str, source_types, limit: int, mode: str) -> list[
         .order_by("distance", "chunk_id")
         .values_list("chunk_id", flat=True)[:PER_LEG]
     )
-    # ts_rank returns a tiny positive value for rows that do not match, so the
-    # match itself (@@) is the filter and the rank only orders.
-    tsquery = SearchQuery(query, config="english", search_type="websearch")
-    keyword_ids = list(
-        base.filter(search_vector=tsquery)
-        .annotate(rank=SearchRank("search_vector", tsquery))
-        .order_by("-rank", "id")
-        .values_list("id", flat=True)[:PER_LEG]
-    )
+    # Keyword leg: OR of the query's content words, ranked by ts_rank (more
+    # matching terms rank higher). A websearch AND would drop every natural
+    # question that contains one word the document lacks. ts_rank returns a tiny
+    # positive value for non-matching rows, so the match (@@) is the filter.
+    tsquery = _or_query(query)
+    keyword_ids = []
+    if tsquery is not None:
+        keyword_ids = list(
+            base.filter(search_vector=tsquery)
+            .annotate(rank=SearchRank("search_vector", tsquery))
+            .order_by("-rank", "id")
+            .values_list("id", flat=True)[:PER_LEG]
+        )
 
     scores: dict = {}
     legs: dict = {}

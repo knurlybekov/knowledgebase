@@ -43,7 +43,8 @@ class StubComposer:
         scored = []
         for item in evidence:
             overlap = len(q & _terms(item.excerpt))
-            if overlap:
+            # One shared word is not grounding; a real model would say insufficient.
+            if overlap >= 2 or (len(q) == 1 and overlap == 1):
                 scored.append((overlap, item))
         scored.sort(key=lambda pair: (-pair[0], pair[1].index))
         claims = [
