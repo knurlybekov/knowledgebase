@@ -58,7 +58,7 @@ def _upsert_grant(
     document, version, link, scope, event: ChangeEvent
 ) -> tuple[AccessGrant, str | None]:
     """Returns (grant, previous_version_id)."""
-    grant = AccessGrant.objects.select_for_update().filter(document=document, link=link).first()
+    grant = AccessGrant.objects.select_for_update().filter(document=document, scope=scope).first()
     previous = None
     if grant is None:
         grant = AccessGrant(
@@ -106,7 +106,7 @@ def upsert(link, scope, event: ChangeEvent, fetcher: Fetcher) -> str:
         document, _ = Document.objects.get_or_create(
             organization_id=org_id, source_type=sd.source_type, source_id=sd.source_id
         )
-        grant = AccessGrant.objects.filter(document=document, link=link).first()
+        grant = AccessGrant.objects.filter(document=document, scope=scope).first()
         if grant is not None and event.seq <= grant.last_event_seq:
             return OBSOLETE
         version, _ = DocumentVersion.objects.get_or_create(
@@ -204,15 +204,34 @@ def remove_access(link, scope, event: ChangeEvent, reason: str = "removed") -> s
         )
         if document is None:
             return NOOP
-        grant = AccessGrant.objects.select_for_update().filter(document=document, link=link).first()
+        grant = (
+            AccessGrant.objects.select_for_update().filter(document=document, scope=scope).first()
+        )
         if grant is None:
-            return NOOP
+            # Removal before any publish for this scope: persist a fence so the
+            # older staged upsert is obsolete when it comes back.
+            AccessGrant.objects.create(
+                organization_id=org_id,
+                document=document,
+                version=None,
+                link=link,
+                scope=scope,
+                first_seen_at=event.observed_at,
+                last_revalidated_at=event.observed_at,
+                last_event_seq=event.seq,
+                revoked_at=timezone.now(),
+                revoke_reason=reason[:32],
+            )
+            document.generation += 1
+            document.save(update_fields=["generation", "updated_at"])
+            return REVOKED
         if event.seq <= grant.last_event_seq:
             return OBSOLETE
         _revoke(grant, reason, event.seq)
         document.generation += 1
         document.save(update_fields=["generation", "updated_at"])
-        maybe_purge(grant.version_id)
+        if grant.version_id is not None:
+            maybe_purge(grant.version_id)
         return REVOKED
 
 
@@ -243,7 +262,8 @@ def _revoke_grants(org_id, grants_qs, reason: str) -> int:
                 continue
             _revoke(grant, reason)
             Document.objects.filter(id=document_id).update(generation=models_F("generation") + 1)
-            maybe_purge(grant.version_id)
+            if grant.version_id is not None:
+                maybe_purge(grant.version_id)
             count += 1
     return count
 

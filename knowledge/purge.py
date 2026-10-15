@@ -6,9 +6,11 @@ from __future__ import annotations
 
 import logging
 
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 
 from infra.api import metrics
+from organizations.api import Membership
 from retrieval.api import delete_version_chunks
 
 from .models import AccessGrant, Document, DocumentReference, DocumentVersion
@@ -26,13 +28,29 @@ def register_purge_hook(fn) -> None:
 def maybe_purge(version_id) -> bool:
     """Purge the version when no unrevoked grant remains. Caller holds the
     document lock inside an organization scope."""
-    if AccessGrant.objects.filter(version_id=version_id, revoked_at__isnull=True).exists():
+    if authorizing_grants(version_id).exists():
         return False
     version = DocumentVersion.objects.select_for_update().filter(id=version_id).first()
     if version is None or version.content_state == DocumentVersion.CONTENT_PURGED:
         return False
     purge_version(version)
     return True
+
+
+def authorizing_grants(version_id):
+    """Unrevoked grants whose link, user and membership still authorize access.
+    Freshness is not checked here: stale grants keep the expiration grace."""
+    active_membership = Membership.objects.filter(
+        organization_id=OuterRef("organization_id"),
+        user_id=OuterRef("link__user_id"),
+        status=Membership.STATUS_ACTIVE,
+    )
+    return AccessGrant.objects.filter(
+        version_id=version_id,
+        revoked_at__isnull=True,
+        link__status="active",
+        link__user__is_active=True,
+    ).filter(Exists(active_membership))
 
 
 def purge_version(version: DocumentVersion) -> None:

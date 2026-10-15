@@ -179,7 +179,7 @@ def sync_scope(scope: SyncScope, client: ProviderClient, *, force_reconcile: boo
             kind = SyncRun.KIND_INCREMENTAL
         generation = None
         if kind in (SyncRun.KIND_BOOTSTRAP, SyncRun.KIND_RECONCILE):
-            generation = scope.current_reconcile_generation + 1
+            generation = _allocate_generation(scope, token)
         with with_org(scope.organization_id):
             run = SyncRun.objects.create(
                 organization_id=scope.organization_id,
@@ -193,7 +193,7 @@ def sync_scope(scope: SyncScope, client: ProviderClient, *, force_reconcile: boo
         except ResyncRequired:
             # Cursor invalid: switch this run into a full reconcile from scratch.
             kind = SyncRun.KIND_RECONCILE
-            generation = scope.current_reconcile_generation + 1
+            generation = _allocate_generation(scope, token)
             with with_org(scope.organization_id):
                 SyncRun.objects.filter(id=run.id).update(kind=kind, reconcile_generation=generation)
             _listing(scope, client, token, run, kind, generation)
@@ -216,12 +216,34 @@ def sync_scope(scope: SyncScope, client: ProviderClient, *, force_reconcile: boo
         release_lease(scope, token)
         return kind
 
-    # Apply the durable rows, then the barrier-guarded sweep.
-    process_inbox(scope, client)
-    if kind in (SyncRun.KIND_BOOTSTRAP, SyncRun.KIND_RECONCILE) and generation is not None:
-        finish_reconcile(scope, generation)
+    # Apply the durable rows, then the barrier-guarded sweep, still under the lease.
+    try:
+        process_inbox(scope, client, token=token)
+        if kind in (SyncRun.KIND_BOOTSTRAP, SyncRun.KIND_RECONCILE) and generation is not None:
+            finish_reconcile(scope, generation, token=token)
+    except LeaseLost:
+        log.warning("lease lost during inbox processing", extra={"scope_id": str(scope.id)})
+        return LEASE_LOST
     release_lease(scope, token)
     return kind
+
+
+def _allocate_generation(scope: SyncScope, token: str) -> int:
+    """A unique generation per started reconcile, independent of the last
+    completed sweep, so a blocked attempt never shares numbers with the next."""
+    with with_org(scope.organization_id):
+        with transaction.atomic():
+            _fenced_renew(scope, token)
+            SyncScope.objects.filter(id=scope.id).update(
+                reconcile_counter=F("reconcile_counter") + 1
+            )
+            value = (
+                SyncScope.objects.filter(id=scope.id)
+                .values_list("reconcile_counter", flat=True)
+                .get()
+            )
+    scope.reconcile_counter = value
+    return value
 
 
 def _listing(scope, client, token, run, kind, generation) -> None:
@@ -297,11 +319,16 @@ def _link_of(scope: SyncScope) -> ConnectorLink:
         return ConnectorLink.objects.get(id=scope.link_id)
 
 
-def process_inbox(scope: SyncScope, client: ProviderClient) -> dict[str, int]:
+def process_inbox(
+    scope: SyncScope, client: ProviderClient, token: str | None = None
+) -> dict[str, int]:
     counts: dict[str, int] = {}
     link = _link_of(scope)
     while True:
         with with_org(scope.organization_id):
+            if token is not None:
+                with transaction.atomic():
+                    _fenced_renew(scope, token)
             row = (
                 ChangeInbox.objects.filter(scope=scope, status=ChangeInbox.STATUS_PENDING)
                 .order_by("seq")
@@ -330,7 +357,11 @@ def process_inbox(scope: SyncScope, client: ProviderClient) -> dict[str, int]:
                 continue  # requeued once; the retry takes the fast path
             if outcome == OBSOLETE:
                 status, code = ChangeInbox.STATUS_OBSOLETE, ""
-            elif outcome in (DRIFT, UNSUPPORTED, STALE) or outcome.startswith("error:"):
+            elif outcome == UNSUPPORTED:
+                # Terminal and safely quarantined: a complete access observation,
+                # so it satisfies the reconcile barrier.
+                status, code = ChangeInbox.STATUS_DONE, UNSUPPORTED
+            elif outcome in (DRIFT, STALE) or outcome.startswith("error:"):
                 status, code = ChangeInbox.STATUS_FAILED, outcome[:64]
             else:
                 status, code = ChangeInbox.STATUS_DONE, ""
@@ -365,10 +396,13 @@ def reconcile_barrier_holds(scope: SyncScope, generation: int) -> bool:
     return completed and not blocked
 
 
-def finish_reconcile(scope: SyncScope, generation: int) -> int:
+def finish_reconcile(scope: SyncScope, generation: int, token: str | None = None) -> int:
     """Sweep grants the completed generation did not touch, when the barrier holds."""
     if not reconcile_barrier_holds(scope, generation):
         return -1
+    if token is not None:
+        with with_org(scope.organization_id), transaction.atomic():
+            _fenced_renew(scope, token)
     swept = sweep_not_seen(scope, generation)
     with with_org(scope.organization_id):
         SyncScope.objects.filter(id=scope.id).update(

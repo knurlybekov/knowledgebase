@@ -1,0 +1,24 @@
+# Never ship secrets, local state or the VCS history in the image.
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.django_tailwind_cli
+staticfiles
+web/static/css/dist
+db.sqlite3
+media
+hermes
+docs
+PLAN.md
+PLAN-REVIEW-LOG.md
+*.md
+!README.md
+.idea
+.vscode

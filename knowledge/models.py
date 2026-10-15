@@ -72,14 +72,18 @@ class DocumentVersion(models.Model):
 
 
 class AccessGrant(models.Model):
-    """This link's crawl observed this revision of this document."""
+    """This scope's crawl observed this revision of this document. A revoked
+    grant with no version is a fence: a removal seen before any content was
+    published, so an older staged publish cannot restore access."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(
         "organizations.Organization", on_delete=models.PROTECT, related_name="+"
     )
     document = models.ForeignKey(Document, on_delete=models.PROTECT, related_name="grants")
-    version = models.ForeignKey(DocumentVersion, on_delete=models.PROTECT, related_name="grants")
+    version = models.ForeignKey(
+        DocumentVersion, on_delete=models.PROTECT, related_name="grants", null=True, blank=True
+    )
     link = models.ForeignKey(
         "connectors.ConnectorLink", on_delete=models.PROTECT, related_name="grants"
     )
@@ -95,7 +99,7 @@ class AccessGrant(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["document", "link"], name="uniq_grant_document_link")
+            models.UniqueConstraint(fields=["document", "scope"], name="uniq_grant_document_scope")
         ]
         indexes = [models.Index(fields=["link", "revoked_at", "last_revalidated_at"])]
 

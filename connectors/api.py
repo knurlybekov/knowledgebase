@@ -63,6 +63,25 @@ def set_link_status(link: ConnectorLink, status: str, error_code: str = "") -> N
     link.status = status
 
 
+def reconcile_selected_scopes(link: ConnectorLink, *, kind: str, selected: dict[str, str]) -> None:
+    """Make the link's scopes of `kind` match `selected` {external_id: name}:
+    create or re-enable chosen ones, disable the rest and revoke their grants."""
+    from knowledge.api import revoke_scope_grants
+
+    with with_org(link.organization_id):
+        existing = {s.external_id: s for s in SyncScope.objects.filter(link=link, kind=kind)}
+    for external_id, name in selected.items():
+        scope = ensure_scope(link, kind=kind, external_id=external_id, display_name=name)
+        if not scope.enabled:
+            with with_org(link.organization_id):
+                SyncScope.objects.filter(id=scope.id).update(enabled=True)
+    for external_id, scope in existing.items():
+        if external_id not in selected and scope.enabled:
+            with with_org(link.organization_id):
+                SyncScope.objects.filter(id=scope.id).update(enabled=False)
+            revoke_scope_grants(scope, "deselected")
+
+
 def org_urlpatterns() -> list:
     """Routes mounted under the organization prefix (lazy: views import this module)."""
     from .org_urls import urlpatterns
@@ -106,6 +125,7 @@ __all__ = [
     "encrypt_token",
     "ensure_scope",
     "org_urlpatterns",
+    "reconcile_selected_scopes",
     "revoke_link",
     "revoke_user_links",
     "set_link_status",

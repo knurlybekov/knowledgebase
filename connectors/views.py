@@ -20,7 +20,13 @@ from infra.api import with_org
 from organizations.api import Membership, Organization, org_path
 
 from . import oauth
-from .api import ConnectorLink, SyncScope, create_link, ensure_scope, revoke_link
+from .api import (
+    ConnectorLink,
+    SyncScope,
+    create_link,
+    ensure_scope,
+    revoke_link,
+)
 from .models import SyncRun
 
 GOOGLE_SCOPES = [
@@ -249,6 +255,8 @@ def _enqueue_syncs(link: ConnectorLink) -> None:
     from .tasks import sync_scope_task
 
     with with_org(link.organization_id):
-        scope_ids = list(SyncScope.objects.filter(link=link).values_list("id", flat=True))
+        scope_ids = list(
+            SyncScope.objects.filter(link=link, enabled=True).values_list("id", flat=True)
+        )
     for scope_id in scope_ids:
         sync_scope_task.delay(str(link.organization_id), str(scope_id))

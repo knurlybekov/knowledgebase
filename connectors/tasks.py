@@ -24,7 +24,11 @@ def schedule_syncs() -> int:
     for org_id in Organization.objects.values_list("id", flat=True):
         with with_org(org_id):
             scopes = list(
-                SyncScope.objects.filter(link__status=ConnectorLink.STATUS_ACTIVE)
+                SyncScope.objects.filter(
+                    link__status=ConnectorLink.STATUS_ACTIVE,
+                    link__user__is_active=True,
+                    enabled=True,
+                )
                 .filter(models_or_due(due_before))
                 .values_list("id", "last_reconcile_at", "bootstrapped")
             )
@@ -47,7 +51,12 @@ def models_or_due(due_before):
 def sync_scope_task(self, org_id, scope_id, force_reconcile: bool = False) -> str:
     with with_org(org_id):
         scope = SyncScope.objects.select_related("link").filter(id=scope_id).first()
-        if scope is None or scope.link.status != ConnectorLink.STATUS_ACTIVE:
+        if (
+            scope is None
+            or not scope.enabled
+            or scope.link.status != ConnectorLink.STATUS_ACTIVE
+            or not scope.link.user.is_active
+        ):
             return "skipped"
         SyncScope.objects.filter(id=scope_id).update(last_attempt_at=timezone.now())
     return sync_scope(scope, client_for(scope.link), force_reconcile=force_reconcile)

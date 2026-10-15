@@ -136,8 +136,10 @@ TEMPLATES = [
 # ---------------------------------------------------------------------------
 DATABASES = {"default": env.db_url("DATABASE_URL")}
 DATABASES["default"]["CONN_MAX_AGE"] = 0
-# Each request runs in one transaction so SET LOCAL app.org_id covers all of it.
-DATABASES["default"]["ATOMIC_REQUESTS"] = True
+# No request-wide transaction (D5): the organization middleware sets session-level
+# GUCs for the request, services open short transactions for writes, and external
+# calls (providers, runner) run between them.
+DATABASES["default"]["ATOMIC_REQUESTS"] = False
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = "accounts.User"

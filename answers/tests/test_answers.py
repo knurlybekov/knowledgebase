@@ -162,3 +162,23 @@ def test_answer_schema_roundtrip():
         "insufficient": False,
     }
     assert AnswerSchema.model_validate(data).claims[0].evidence_indices == [1]
+
+
+def test_publication_time_recheck_withholds_text_when_evidence_vanishes(monkeypatch):
+    org, user, link, scope = setup()
+    principal = principal_for(org, user)
+
+    class RevokingComposer(StubComposer):
+        def answer(self, question, evidence):
+            # Access is lost while the model is generating.
+            apply_change(
+                link, scope, make_event(20, None, kind="remove", source_id="gdrive:vac"), None
+            )
+            return super().answer(question, evidence)
+
+    monkeypatch.setattr("answers.service.get_composer", lambda: RevokingComposer())
+    result = answer_question(principal, "How many vacation days do employees accrue?")
+    assert result.withheld is True and result.claims == []
+    with with_org(org.id):
+        row = Answer.objects.get(id=result.id)
+        assert row.content_state == "purged" and row.claims in (None, [])

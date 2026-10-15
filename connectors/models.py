@@ -73,7 +73,11 @@ class SyncScope(models.Model):
     last_attempt_at = models.DateTimeField(null=True, blank=True)
     last_reconcile_at = models.DateTimeField(null=True, blank=True)
     current_reconcile_generation = models.IntegerField(default=0)
+    reconcile_counter = models.IntegerField(
+        default=0
+    )  # allocates a unique generation per started reconcile
     bootstrapped = models.BooleanField(default=False)
+    enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
     class Meta:

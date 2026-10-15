@@ -84,13 +84,12 @@ def _search(principal, query: str, source_types, limit: int, mode: str) -> list[
         .order_by("distance", "chunk_id")
         .values_list("chunk_id", flat=True)[:PER_LEG]
     )
+    # ts_rank returns a tiny positive value for rows that do not match, so the
+    # match itself (@@) is the filter and the rank only orders.
+    tsquery = SearchQuery(query, config="english", search_type="websearch")
     keyword_ids = list(
-        base.annotate(
-            rank=SearchRank(
-                "search_vector", SearchQuery(query, config="english", search_type="websearch")
-            )
-        )
-        .filter(rank__gt=0)
+        base.filter(search_vector=tsquery)
+        .annotate(rank=SearchRank("search_vector", tsquery))
         .order_by("-rank", "id")
         .values_list("id", flat=True)[:PER_LEG]
     )

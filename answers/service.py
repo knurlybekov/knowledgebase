@@ -152,7 +152,14 @@ def answer_question(principal, question: str, *, source_types=None, k: int = 8) 
         "source_types": list(source_types or []),
         "usage": usage,
     }
+    version_ids = sorted({c.version_id for c in citations})
     with with_org(principal.organization_id, principal.user_id):
+        # Publication-time recheck (D6): evidence revoked or purged while the
+        # composer ran must not be disclosed, not even once.
+        still_visible = versions_visible(principal, version_ids)
+        if not still_visible:
+            claims, unsupported, conflicts = [], [], []
+            state = Answer.STATE_INSUFFICIENT
         row = Answer.objects.create(
             organization_id=principal.organization_id,
             user=principal.user,
@@ -161,10 +168,11 @@ def answer_question(principal, question: str, *, source_types=None, k: int = 8) 
             unsupported=unsupported,
             conflicts=conflicts,
             evidence_chunk_ids=[c.chunk_id for c in citations],
-            evidence_version_ids=sorted({c.version_id for c in citations}),
+            evidence_version_ids=version_ids,
             evidence_state=state,
             retrieval_meta=meta,
             model_id=model_id,
+            content_state=Answer.CONTENT_PRESENT if still_visible else Answer.CONTENT_PURGED,
         )
         record_access(
             principal.organization_id,
@@ -172,7 +180,19 @@ def answer_question(principal, question: str, *, source_types=None, k: int = 8) 
             "answer",
             object_type="answer",
             object_id=row.id,
-            meta={"evidence_state": state, "retrieved": len(results)},
+            meta={
+                "evidence_state": state,
+                "retrieved": len(results),
+                "withheld": not still_visible,
+            },
+        )
+    if not still_visible:
+        return AnswerResult(
+            id=str(row.id),
+            question=question,
+            evidence_state=state,
+            content_state=row.content_state,
+            withheld=True,
         )
     return AnswerResult(
         id=str(row.id),

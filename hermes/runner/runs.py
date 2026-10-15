@@ -27,6 +27,7 @@ REGISTRY_ROOT = Path(os.environ.get("REGISTRY_ROOT", "/opt/data/registry"))
 HERMES_BIN = os.environ.get("HERMES_BIN", "/opt/hermes/bin/hermes")
 KNOWLEDGE_MCP_URL = os.environ.get("KNOWLEDGE_MCP_URL", "http://knowledge-mcp:8710/mcp")
 HERMES_MODEL = os.environ.get("HERMES_MODEL", "anthropic/claude-opus-5")
+HERMES_PROVIDER = os.environ.get("HERMES_PROVIDER", "anthropic")
 PROVIDER_KEY_ENV = os.environ.get("HERMES_PROVIDER_API_KEY_ENV", "ANTHROPIC_API_KEY")
 RECORD_TTL_S = int(os.environ.get("RUNNER_RECORD_TTL_S", str(24 * 3600)))
 GRACE_S = float(os.environ.get("RUNNER_KILL_GRACE_S", "10"))
@@ -105,7 +106,9 @@ def render_config(mcp_url: str, model: str, max_turns: int, max_tool_calls: int)
     """config.yaml for one run. The MCP token is read from the process environment
     through ${KNOWLEDGE_MCP_TOKEN}; it never appears in the file or the prompt."""
     return (
-        f"model: {model}\n"
+        "model:\n"
+        f"  default: {model}\n"
+        f"  provider: {HERMES_PROVIDER}\n"
         "agent:\n"
         f"  max_turns: {max_turns}\n"
         f"  max_tool_calls: {max_tool_calls}\n"

@@ -23,8 +23,11 @@ down: ## Stop containers.
 ps: ## List containers.
 	docker compose ps
 
-migrate: ## Apply migrations (as the migrator role from .env).
-	$(DJANGO) migrate
+# Migrations and tests run as kb_migrator (owns the schema, CREATEDB); runtime as kb_app.
+MIGRATOR_URL = $$(grep -E '^MIGRATOR_DATABASE_URL=' .env | cut -d= -f2-)
+
+migrate: ## Apply migrations as the migrator role (MIGRATOR_DATABASE_URL in .env).
+	DATABASE_URL=$(MIGRATOR_URL) $(DJANGO) migrate
 
 makemigrations: ## Create migrations for model changes.
 	$(DJANGO) makemigrations
@@ -41,8 +44,8 @@ beat: ## Celery beat (static schedule from settings).
 mcp: ## Knowledge MCP server on :8710.
 	$(DJANGO) run_mcp_server --host 127.0.0.1 --port 8710
 
-test: ## Full test suite against the compose Postgres.
-	$(PY) -m pytest -q
+test: ## Full test suite against the compose Postgres, as the migrator role.
+	DATABASE_URL=$(MIGRATOR_URL) $(PY) -m pytest -q
 
 lint: ## Ruff check.
 	$(PY) -m ruff check .

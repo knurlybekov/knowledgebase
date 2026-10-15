@@ -52,6 +52,21 @@ def remove_member(organization, user, *, actor) -> None:
             hook(organization, user)
 
 
+def offboard_user_everywhere(user) -> int:
+    """User deactivation: run the offboarding hooks in every organization the
+    user belongs to (links revoked, investigations cancelled). Memberships stay
+    as records; an inactive user is invisible to every authorization predicate."""
+    count = 0
+    org_ids = [m.organization_id for m in Membership.all_for_user(user)]
+    for org_id in org_ids:
+        with with_org(org_id, user.pk):
+            organization = Organization.objects.get(id=org_id)
+            for hook in _offboarding_hooks:
+                hook(organization, user)
+            count += 1
+    return count
+
+
 _offboarding_hooks: list = []
 
 
@@ -66,6 +81,7 @@ __all__ = [
     "OrganizationContextMiddleware",
     "Principal",
     "memberships_for_user",
+    "offboard_user_everywhere",
     "org_path",
     "register_offboarding_hook",
     "remove_member",

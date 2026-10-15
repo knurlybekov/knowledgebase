@@ -37,7 +37,9 @@ def test_audit_log_is_append_only():
 def test_temp_table_cannot_shadow_audit_log(app_role_connection):
     org, user = make_org(), make_user()
     with app_role_connection.cursor() as cur:
-        cur.execute("CREATE TEMP TABLE infra_auditlog (LIKE public.infra_auditlog)")
+        cur.execute(
+            "CREATE TEMP TABLE infra_auditlog (id uuid, organization_id uuid, actor_id uuid, request_id text, action text, target_table text, target_id uuid, diff jsonb, at timestamptz)"
+        )
         cur.execute("SELECT set_config('app.org_id', %s, false)", [str(org.id)])
         cur.execute("SELECT set_config('app.actor_id', %s, false)", [str(user.pk)])
         cur.execute(

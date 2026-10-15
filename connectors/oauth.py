@@ -37,6 +37,8 @@ def google_authorization_url(request, scopes, state: str) -> str:
     url, _ = flow.authorization_url(
         access_type="offline", prompt="consent", include_granted_scopes="false", state=state
     )
+    # PKCE: the verifier must survive to the callback, which builds a new flow.
+    request.session["google_pkce_verifier"] = flow.code_verifier
     return url
 
 
@@ -45,6 +47,10 @@ def google_exchange_code(request, scopes, code: str) -> OAuthResult:
     from google.oauth2 import id_token as google_id_token
 
     flow = _google_flow(request, scopes)
+    verifier = request.session.pop("google_pkce_verifier", None)
+    if not verifier:
+        raise ValueError("The OAuth session has no PKCE verifier; start the link flow again.")
+    flow.code_verifier = verifier
     flow.fetch_token(code=code)
     creds = flow.credentials
     claims = google_id_token.verify_oauth2_token(

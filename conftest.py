@@ -24,8 +24,8 @@ def django_db_setup(django_db_setup, django_db_blocker):
                 "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kb_app"
             )
             cur.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO kb_app")
-            # Only the trigger writes the audit log (infra migration 0001).
-            cur.execute("REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON infra_auditlog FROM kb_app")
+            # Only the trigger writes the audit log; the runtime role cannot read it either.
+            cur.execute("REVOKE ALL ON infra_auditlog FROM kb_app")
 
 
 def _app_role_dsn() -> str:
@@ -44,3 +44,23 @@ def app_role_connection(db):
     after commit, so use it with `transaction=True` tests or for catalog checks."""
     with psycopg.connect(_app_role_dsn(), autocommit=True) as conn:
         yield conn
+
+
+@pytest.fixture
+def runtime_role(transactional_db):
+    """Run the test through Django's default connection as the runtime role
+    kb_app (the test database already carries its grants). Credentials are
+    restored before pytest-django flushes the database as the migrator."""
+    from infra import rls
+
+    original = {k: connection.settings_dict[k] for k in ("USER", "PASSWORD")}
+    connection.close()
+    connection.settings_dict["USER"] = "kb_app"
+    connection.settings_dict["PASSWORD"] = os.environ.get("KB_APP_PASSWORD", "kb_app")
+    rls._verified.discard(connection.alias)
+    try:
+        yield
+    finally:
+        connection.close()
+        connection.settings_dict.update(original)
+        rls._verified.discard(connection.alias)

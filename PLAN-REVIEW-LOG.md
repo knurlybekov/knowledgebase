@@ -315,3 +315,80 @@ VERDICT: APPROVED after 4 rounds. The five implementation notes are folded into 
 4. `last_revalidated_at` = provider observation time (`ChangeInbox.observed_at`), not processing time.
 5. `MCP_MIN_RESPONSE_CHARS` minimum envelope; below it, an uncharged `budget_exhausted` payload.
 Rounds used: 4 of 5. Loop closed. Phase 3 (build) awaits the user's choice of builder.
+
+## Post-build inspection — Sprint 1 (fresh read-only Codex session, 2026-10-15)
+
+### Codex findings (verbatim)
+
+1. **P1 — Answer publication bypasses D6 after generation.** [answers/service.py:155](/Users/karennurlybekov/Desktop/knowledgebase/answers/service.py:155) unconditionally saves and returns generated text. If evidence is revoked or purged during the composer call, the purge hook cannot find this not-yet-created answer; completion then stores and exposes its prose. The later `read_answer()` check cannot prevent that initial disclosure.  
+   **Fix:** Serialize publication against evidence purge, recheck every supplied version, and discard text when authorization or content state changed.
+
+2. **P1 — Lease fencing stops before inbox processing.** [connectors/sync.py:220](/Users/karennurlybekov/Desktop/knowledgebase/connectors/sync.py:220) calls processing and reconciliation without passing the lease token. Neither renews nor validates ownership; run completion and error-path revocations are also unfenced. After the five-minute lease expires, an old worker can keep publishing or revoking while its replacement runs.  
+   **Fix:** Carry and transactionally validate the lease token through every sync mutation, including publication, inbox status, completion, and sweeping.
+
+3. **P1 — Removal during the first download does not fence publication.** [knowledge/pipeline.py:207](/Users/karennurlybekov/Desktop/knowledgebase/knowledge/pipeline.py:207) returns `NOOP` when no grant exists. During first ingestion, the document exists but its grant has not been published, so a newer removal records neither sequence nor generation change; the older download subsequently creates access. The existing race test precreates a grant and misses this case.  
+   **Fix:** Persist removal fences even without an existing grant, and test removal during initial ingestion.
+
+4. **P1 — Google OAuth loses its PKCE verifier.** [connectors/oauth.py:36](/Users/karennurlybekov/Desktop/knowledgebase/connectors/oauth.py:36) generates an authorization URL using a flow that enables PKCE, then discards it. The callback creates another flow at line 47 without the verifier. An in-memory check confirmed a challenge is sent but no verifier survives, breaking live token exchange; the OAuth tests mock both functions away.  
+   **Fix:** Store the verifier with the session’s OAuth state and restore it for the single-use callback.
+
+5. **P1 — Docker builds embed local secrets.** [Dockerfile:19](/Users/karennurlybekov/Desktop/knowledgebase/Dockerfile:19) copies the entire workspace, and the commit contains no `.dockerignore`. Consequently `.env`, including database credentials, provider secrets, and the connector encryption key, enters the application image; `.gitignore` does not protect Docker builds.  
+   **Fix:** Exclude secrets, `.git`, and local environments from the build context, preferably copying only required application files.
+
+6. **P2 — Failed reconciliations reuse generation numbers.** [connectors/sync.py:182](/Users/karennurlybekov/Desktop/knowledgebase/connectors/sync.py:182) derives the next generation from the last successful sweep. If a blocked reconciliation stamps document A, the next attempt omits A and resolves the blocking failure, both attempts share a generation; A incorrectly survives the completed sweep.  
+   **Fix:** Allocate a unique generation when each reconciliation starts, separately from the last successfully completed generation.
+
+7. **P2 — Unsupported files permanently block reconciliation.** [connectors/sync.py:333](/Users/karennurlybekov/Desktop/knowledgebase/connectors/sync.py:333) treats `UNSUPPORTED` as a failed inbox row. Both providers enumerate ordinary images, archives, and other unsupported binaries, so one such file prevents the sweep indefinitely and repeatedly triggers full reconciliation.  
+   **Fix:** Distinguish terminal, safely quarantined content from unsuccessful access observations, allowing the former to satisfy the reconciliation barrier.
+
+8. **P2 — Event sequences are compared across unrelated scopes.** [knowledge/pipeline.py:109](/Users/karennurlybekov/Desktop/knowledgebase/knowledge/pipeline.py:109) looks up grants by document/link and compares sequence numbers without checking scope; `_upsert_grant()` subsequently overwrites the scope. A Graph item encountered through multiple selected drives or shared wrappers therefore mixes independent counters, dropping legitimate changes or applying another scope’s removal.  
+   **Fix:** Define unambiguous grant ownership by scope and compare sequence/reconciliation values only within that scope.
+
+9. **P2 — Real Google refresh failures leave links active.** [connectors/providers/google.py:245](/Users/karennurlybekov/Desktop/knowledgebase/connectors/providers/google.py:245) catches only `HttpError`; credential refresh raises `google.auth.exceptions.RefreshError`. That escapes the sync engine’s `AuthError` handling, leaving existing grants usable until freshness expiry instead of immediately invalidating the link. The fake raises `AuthError` directly and conceals this difference.  
+   **Fix:** Translate credential-refresh failures into `AuthError` and test the real adapter boundary.
+
+10. **P2 — User deactivation does not stop ingestion or revoke grants.** [connectors/tasks.py:27](/Users/karennurlybekov/Desktop/knowledgebase/connectors/tasks.py:27) schedules solely by link status, and the task repeats only that check. Changing `User.is_active` through the registered admin invokes no offboarding hook, so the disabled user’s delegated credentials keep fetching and refreshing content indefinitely.  
+    **Fix:** Route deactivation through transactional offboarding and independently require an active user and membership before syncing.
+
+11. **P2 — Purge counts invalid grants as surviving authorization.** [knowledge/purge.py:29](/Users/karennurlybekov/Desktop/knowledgebase/knowledge/purge.py:29) checks only `revoked_at`. A stale grant, errored link, or inactive owner therefore prevents immediate purge when the last valid grant is removed, retaining source and derived text contrary to the planned `maybe_purge` rule.  
+    **Fix:** Check organization-wide valid grants using freshness, link, membership, and user status, while preserving the separately specified expiration grace.
+
+12. **P2 — Deselecting a SharePoint library leaves it syncing.** [connectors/views.py:183](/Users/karennurlybekov/Desktop/knowledgebase/connectors/views.py:183) replaces `selected_scopes` but only creates scopes; it never disables removed selections. `_enqueue_syncs()` and the scheduler continue processing every historical scope, including when the submitted selection is empty.  
+    **Fix:** Reconcile selected scopes transactionally, fencing removed scopes and revoking their grants.
+
+13. **P2 — Runtime access to audit data bypasses organization isolation.** [infra/migrations/0001_initial.py:64](/Users/karennurlybekov/Desktop/knowledgebase/infra/migrations/0001_initial.py:64) grants `kb_app` direct `SELECT` on the audit table without RLS. Any runtime query can read every organization’s audit metadata with no organization GUC; the coverage test explicitly exempts this table despite the approved database-role restriction.  
+    **Fix:** Remove direct runtime access and provide a narrowly authorized organization-scoped audit reader if needed.
+
+14. **P2 — External calls run inside request-wide transactions.** [organizations/middleware.py:45](/Users/karennurlybekov/Desktop/knowledgebase/organizations/middleware.py:45) wraps the entire view, and [settings/base.py:140](/Users/karennurlybekov/Desktop/knowledgebase/knowledgebase/settings/base.py:140) additionally enables `ATOMIC_REQUESTS`. Nested `with_org()` blocks consequently do not commit before embedding, composition, or connector HTTP calls, violating D5 and retaining database transactions throughout provider latency.  
+    **Fix:** Remove ambient request transactions and explicitly scope database operations, performing external calls between committed blocks.
+
+15. **P2 — Administration omits the required independent organization predicates.** [web/admin_views.py:21](/Users/karennurlybekov/Desktop/knowledgebase/web/admin_views.py:21) reads links, scopes, inbox rows, runs, grants, and documents without filtering by the principal’s organization. Its isolation depends entirely on the ambient RLS context, contrary to the plan’s two independent layers; the single-organization test cannot detect this omission.  
+    **Fix:** Apply explicit organization predicates throughout these queries and test with multiple organizations and mismatched scope context.
+
+16. **P2 — Documented migration and test commands use the runtime role.** [Makefile:26](/Users/karennurlybekov/Desktop/knowledgebase/Makefile:26) and the test target use `DATABASE_URL` unchanged, while `.env.example` sets it to `kb_app`. `MIGRATOR_DATABASE_URL` is consumed only by the Docker entrypoint, so fresh local setup cannot migrate or create the test database using the supplied commands.  
+    **Fix:** Select `MIGRATOR_DATABASE_URL` explicitly for migrations and test-database setup, retaining `kb_app` for runtime execution.
+
+17. **P2 — Authorization-path tests do not exercise `kb_app`.** [conftest.py:41](/Users/karennurlybekov/Desktop/knowledgebase/conftest.py:41) provides a separate raw connection used only by membership-policy and audit tests. Retrieval, answers, ingestion, and HTTP authorization still execute through Django’s migrator connection. The matrix’s cross-organization and same-organization inconsistent-FK rejection cases are also absent.  
+    **Fix:** Execute authorization services and requests through a runtime-role Django connection and add the specified negative relationship tests.
+
+No files were modified by this review. Database tests were not run because they write; the OAuth check used memory only and made no provider calls.
+### Claude's dispositions
+All 17 accepted; fixes landed in the commit "Inspection fixes" with regression tests.
+1. Accepted: publication-time recheck of every supplied version before the Answer row is written; withheld result and `content_state=purged` when any is gone. Test: `test_publication_time_recheck_withholds_text_when_evidence_vanishes`.
+2. Accepted: the lease token now flows through `process_inbox` (renewed per row) and `finish_reconcile`; a lost lease stops processing.
+3. Accepted: a removal with no grant writes a revoked fence grant (nullable version, seq recorded) and bumps the generation. Test: `test_removal_during_first_ingestion_is_fenced`.
+4. Accepted: the PKCE verifier is stored in the session at start and restored at the callback.
+5. Accepted: `.dockerignore` excludes `.env`, `.git`, the venv and local state.
+6. Accepted: `SyncScope.reconcile_counter` allocates a unique generation per started reconcile.
+7. Accepted: `UNSUPPORTED` rows are `done` with the reason recorded; they satisfy the barrier.
+8. Accepted: grants are unique per (document, scope); sequence and generation comparisons stay within the scope. Test: `test_same_document_through_two_scopes_keeps_independent_fences`.
+9. Accepted: `google.auth.exceptions.RefreshError` maps to `AuthError`. Test added.
+10. Accepted: user deactivation runs the offboarding hooks in every organization (signal in accounts); the scheduler and sync task require an active user and an enabled scope. Test: `test_user_deactivation_revokes_links_and_purges`.
+11. Accepted: `maybe_purge` counts only authorizing grants (link active, user active, membership active); freshness keeps its grace. Test: `test_purge_ignores_grants_that_no_longer_authorize`.
+12. Accepted: `reconcile_selected_scopes` disables deselected scopes and revokes their grants. Test added.
+13. Accepted: `REVOKE ALL ON infra_auditlog FROM kb_app` (migration 0002); no runtime reader exists.
+14. Accepted: `ATOMIC_REQUESTS=False`; the middleware sets session-level GUCs and resets them; services keep short transactions.
+15. Accepted: explicit `organization_id` predicates on every administration query.
+16. Accepted: Makefile `migrate` and `test` use `MIGRATOR_DATABASE_URL`.
+17. Partially accepted: a `runtime_role` fixture swaps the default connection to `kb_app` for a test; added runtime-role tests for cross-organization visibility and the audit table, plus the two relational-consistency rejection tests. The whole suite still runs as the migrator (pytest-django flushes with TRUNCATE, which the runtime role must not have).
+Rounds used: 1 of 2. A reinspection runs after Sprint 2.

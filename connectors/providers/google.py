@@ -243,10 +243,13 @@ class GoogleApiClient:
         self._service = build("drive", "v3", credentials=creds, cache_discovery=False)
 
     def _run(self, request):
+        from google.auth.exceptions import RefreshError
         from googleapiclient.errors import HttpError
 
         try:
             return request.execute(num_retries=4)
+        except RefreshError as exc:
+            raise AuthError("token_refresh_failed", str(exc)[:200], status=401) from exc
         except HttpError as exc:
             status = exc.resp.status
             if status in (401,):

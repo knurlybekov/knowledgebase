@@ -10,7 +10,7 @@ import tempfile
 from cryptography.fernet import Fernet
 
 from .base import *  # noqa: F403
-from .base import DATABASES, LOGGING, STORAGES
+from .base import LOGGING, STORAGES
 
 STORAGES["staticfiles"] = {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}
 WHITENOISE_AUTOREFRESH = True
@@ -42,7 +42,6 @@ RATE_LIMIT_SEARCH_PER_MIN = 100_000
 RATE_LIMIT_INVESTIGATION_PER_HOUR = 100_000
 RATE_LIMIT_LOGIN_PER_15MIN = 100_000
 ALLOWED_HOSTS = ["*"]
-DATABASES["default"]["ATOMIC_REQUESTS"] = True
 MEDIA_ROOT = tempfile.mkdtemp(prefix="kb-test-media-")
 
 LOGGING["root"]["level"] = "WARNING"

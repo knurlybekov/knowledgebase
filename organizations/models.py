@@ -60,3 +60,11 @@ class Membership(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} @ {self.organization} ({self.role})"
+
+    @classmethod
+    def all_for_user(cls, user):
+        """Memberships of a user across organizations, through the self policy."""
+        from infra.api import with_actor
+
+        with with_actor(user.pk):
+            return list(cls.objects.filter(user=user))
