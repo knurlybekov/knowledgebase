@@ -3,7 +3,9 @@
 from .models import User, UserIdentity
 
 
-def link_identity(user, *, provider: str, external_id: str, email: str, verified_via: str) -> UserIdentity:
+def link_identity(
+    user, *, provider: str, external_id: str, email: str, verified_via: str
+) -> UserIdentity:
     """Create or refresh a verified identity row for this user. A provider
     identity belongs to exactly one platform user."""
     identity, _created = UserIdentity.objects.update_or_create(

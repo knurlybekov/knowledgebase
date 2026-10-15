@@ -61,7 +61,9 @@ def test_app_role_self_policy_and_denied_privileges(app_role_connection):
         cur.execute("SELECT user_id FROM organizations_membership")
         assert [r[0] for r in cur.fetchall()] == [me.pk]
         # The self policy is SELECT-only: an UPDATE sees no rows.
-        cur.execute("UPDATE organizations_membership SET role = 'admin' WHERE user_id = %s", [str(me.pk)])
+        cur.execute(
+            "UPDATE organizations_membership SET role = 'admin' WHERE user_id = %s", [str(me.pk)]
+        )
         assert cur.rowcount == 0
         cur.execute("SELECT set_config('app.actor_id', '', false)")
         with pytest.raises(psycopg.errors.InsufficientPrivilege):

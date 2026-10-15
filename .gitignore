@@ -21,3 +21,6 @@ eval/results/*.local.md
 
 # Tailwind build output (rebuilt by `make tailwind-build`)
 web/static/css/dist/
+
+# Tailwind CLI binary cache
+.django_tailwind_cli/

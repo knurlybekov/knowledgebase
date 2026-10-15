@@ -40,9 +40,7 @@ class AccessEvent(models.Model):
     organization = models.ForeignKey(
         "organizations.Organization", on_delete=models.PROTECT, related_name="+"
     )
-    user = models.ForeignKey(
-        "accounts.User", on_delete=models.PROTECT, related_name="+", null=True
-    )
+    user = models.ForeignKey("accounts.User", on_delete=models.PROTECT, related_name="+", null=True)
     kind = models.CharField(max_length=20, choices=KIND_CHOICES)
     object_type = models.CharField(max_length=40, blank=True, default="")
     object_id = models.CharField(max_length=64, blank=True, default="")

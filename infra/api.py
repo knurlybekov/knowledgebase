@@ -25,8 +25,16 @@ from .sql import (
 from .tasks import OrgAwareTask
 
 
-def record_access(organization_id, user, kind: str, *, object_type: str = "", object_id: str = "",
-                  meta: dict | None = None, investigation_id=None) -> None:
+def record_access(
+    organization_id,
+    user,
+    kind: str,
+    *,
+    object_type: str = "",
+    object_id: str = "",
+    meta: dict | None = None,
+    investigation_id=None,
+) -> None:
     """Write one AccessEvent inside the current organization scope."""
     AccessEvent.objects.create(
         organization_id=organization_id,

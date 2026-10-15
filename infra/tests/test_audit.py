@@ -14,7 +14,9 @@ pytestmark = pytest.mark.django_db(transaction=True)
 def test_trigger_logs_allowlisted_columns_only():
     org, user = make_org(), make_user()
     membership = make_membership(org, user)
-    row = AuditLog.objects.filter(target_table="organizations_membership", target_id=membership.id).get()
+    row = AuditLog.objects.filter(
+        target_table="organizations_membership", target_id=membership.id
+    ).get()
     assert row.action == "insert"
     assert row.organization_id == org.id
     assert row.actor_id == user.pk
@@ -46,7 +48,11 @@ def test_temp_table_cannot_shadow_audit_log(app_role_connection):
         cur.execute("SELECT count(*) FROM pg_temp.infra_auditlog")
         assert cur.fetchone()[0] == 0
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
-            cur.execute("INSERT INTO public.infra_auditlog (id, action, target_table, diff, at) VALUES (gen_random_uuid(), 'x', 'y', '{}', now())")
+            cur.execute(
+                "INSERT INTO public.infra_auditlog (id, action, target_table, diff, at) VALUES (gen_random_uuid(), 'x', 'y', '{}', now())"
+            )
     with with_org(org.id):
         assert Membership.objects.filter(user=user).exists()
-    assert AuditLog.objects.filter(target_table="organizations_membership", actor_id=user.pk).exists()
+    assert AuditLog.objects.filter(
+        target_table="organizations_membership", actor_id=user.pk
+    ).exists()

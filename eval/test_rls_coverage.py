@@ -67,4 +67,6 @@ def test_no_unexpected_table_lacks_rls():
         )
         unprotected = {row[0] for row in cur.fetchall()}
     unexpected = unprotected - NO_RLS_TABLES
-    assert not unexpected, "Tables without RLS and not on the allow-list: " + ", ".join(sorted(unexpected))
+    assert not unexpected, "Tables without RLS and not on the allow-list: " + ", ".join(
+        sorted(unexpected)
+    )

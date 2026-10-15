@@ -10,14 +10,16 @@ investigation_terminal_total = Counter(
     "investigation_terminal_total", "Investigations that reached a terminal state", ["status"]
 )
 investigation_duration_seconds = Histogram(
-    "investigation_duration_seconds", "Wall clock per investigation",
+    "investigation_duration_seconds",
+    "Wall clock per investigation",
     buckets=(5, 15, 30, 60, 120, 180, 300, 600),
 )
 tool_calls_used = Histogram(
     "tool_calls_used", "MCP tool calls per investigation", buckets=(1, 2, 5, 10, 20, 50)
 )
 output_chars_used = Histogram(
-    "output_chars_used", "MCP output characters per investigation",
+    "output_chars_used",
+    "MCP output characters per investigation",
     buckets=(1000, 5000, 20000, 60000, 120000),
 )
 runner_orphans_reaped_total = Counter(

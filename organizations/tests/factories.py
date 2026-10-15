@@ -20,6 +20,8 @@ def make_org(slug: str | None = None) -> Organization:
     return Organization.objects.create(name=slug.title(), slug=slug)
 
 
-def make_membership(org: Organization, user: User, role: str = Membership.ROLE_MEMBER) -> Membership:
+def make_membership(
+    org: Organization, user: User, role: str = Membership.ROLE_MEMBER
+) -> Membership:
     with with_org(org.id, user.pk):
         return Membership.objects.create(organization=org, user=user, role=role)

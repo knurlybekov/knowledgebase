@@ -52,7 +52,9 @@ class Membership(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["organization", "user"], name="uniq_membership_org_user")
+            models.UniqueConstraint(
+                fields=["organization", "user"], name="uniq_membership_org_user"
+            )
         ]
         ordering = ("organization__name", "user__email")
 

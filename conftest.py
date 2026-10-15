@@ -20,7 +20,9 @@ def django_db_setup(django_db_setup, django_db_blocker):
     with django_db_blocker.unblock():
         with connection.cursor() as cur:
             cur.execute("GRANT USAGE ON SCHEMA public TO kb_app")
-            cur.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kb_app")
+            cur.execute(
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kb_app"
+            )
             cur.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO kb_app")
             # Only the trigger writes the audit log (infra migration 0001).
             cur.execute("REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON infra_auditlog FROM kb_app")

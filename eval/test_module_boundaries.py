@@ -7,8 +7,18 @@ from collections.abc import Iterable
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 APPS = {
-    "accounts", "organizations", "connectors", "knowledge", "retrieval", "answers",
-    "investigations", "mcp_server", "decisions", "web", "infra", "eval",
+    "accounts",
+    "organizations",
+    "connectors",
+    "knowledge",
+    "retrieval",
+    "answers",
+    "investigations",
+    "mcp_server",
+    "decisions",
+    "web",
+    "infra",
+    "eval",
 }
 
 
@@ -65,7 +75,9 @@ def _violation(path: pathlib.Path, source_app: str, imported: str) -> str | None
     parts = imported.split(".")
     if len(parts) == 1 or parts[1] == "api":
         return None
-    return f"{path}: {source_app}/ imports `{imported}` (internal of {target}/). Use `{target}.api`."
+    return (
+        f"{path}: {source_app}/ imports `{imported}` (internal of {target}/). Use `{target}.api`."
+    )
 
 
 def test_no_cross_app_internal_imports():
