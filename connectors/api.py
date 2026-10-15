@@ -63,6 +63,31 @@ def set_link_status(link: ConnectorLink, status: str, error_code: str = "") -> N
     link.status = status
 
 
+def revoke_user_links(organization, user) -> int:
+    """Offboarding hook: every link this member owns is revoked and its grants
+    are removed. Runs inside the organization scope opened by remove_member."""
+    from knowledge.api import revoke_link_grants
+
+    count = 0
+    for link in ConnectorLink.objects.filter(organization=organization, user=user).exclude(
+        status=ConnectorLink.STATUS_REVOKED
+    ):
+        link.status = ConnectorLink.STATUS_REVOKED
+        link.status_changed_at = timezone.now()
+        link.save(update_fields=["status", "status_changed_at"])
+        revoke_link_grants(link, "link_revoked")
+        count += 1
+    return count
+
+
+def revoke_link(link: ConnectorLink) -> None:
+    """User-initiated unlink."""
+    from knowledge.api import revoke_link_grants
+
+    set_link_status(link, ConnectorLink.STATUS_REVOKED, "unlinked")
+    revoke_link_grants(link, "link_revoked")
+
+
 __all__ = [
     "ChangeInbox",
     "ConnectorLink",
@@ -73,5 +98,7 @@ __all__ = [
     "decrypt_token",
     "encrypt_token",
     "ensure_scope",
+    "revoke_link",
+    "revoke_user_links",
     "set_link_status",
 ]

@@ -10,3 +10,8 @@ def org_url(context, name, *args, **kwargs):
     path = reverse(name, args=args, kwargs=kwargs)
     prefix = context.get("org_prefix") or ""
     return f"{prefix}{path}"
+
+
+@register.filter
+def get_item(mapping, key):
+    return mapping.get(key) if mapping else None

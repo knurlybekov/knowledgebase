@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load org_tags %}
+{% block title %}Select libraries · {{ organization.name }}{% endblock %}
+{% block content %}
+<h1 class="mb-2 text-xl font-semibold">Select SharePoint libraries</h1>
+<p class="mb-4 text-sm text-slate-600">Only the libraries you select here are indexed, as your account sees them.</p>
+<form method="get" class="mb-4 flex gap-2">
+  <input class="w-96 rounded border px-2 py-1" type="text" name="q" value="{{ query }}" placeholder="Search sites or paste a site URL">
+  <button class="rounded border bg-white px-3 py-1" type="submit">Find</button>
+</form>
+<form method="post">
+  {% csrf_token %}
+  <ul class="space-y-1">
+  {% for o in options %}
+    <li><label class="flex items-center gap-2"><input type="checkbox" name="drive" value="{{ o.drive_id }}"><input type="hidden" name="drive_name" value="{{ o.site }}{% if o.site %} / {% endif %}{{ o.name }}">{{ o.site }}{% if o.site %} / {% endif %}{{ o.name }}</label></li>
+  {% endfor %}
+  </ul>
+  <button class="mt-4 rounded bg-slate-900 px-3 py-1.5 text-white" type="submit">Index selected libraries</button>
+</form>
+{% endblock %}

@@ -266,6 +266,17 @@ def revoke_scope_grants(scope, reason: str = "scope_lost") -> int:
         return _revoke_grants(scope.organization_id, qs, reason)
 
 
+def revoke_link_drive_grants(link, drive_id: str, reason: str = "scope_lost") -> int:
+    """Google: a shared drive left the account's view; revoke this link's grants on it."""
+    if not drive_id:
+        return 0
+    with with_org(link.organization_id):
+        qs = AccessGrant.objects.filter(
+            link=link, revoked_at__isnull=True, document__drive_id=drive_id
+        )
+        return _revoke_grants(link.organization_id, qs, reason)
+
+
 def sweep_not_seen(scope, generation: int) -> int:
     """Revoke grants of the scope that a completed reconcile generation did not
     touch. The caller has verified the sweep barrier."""
