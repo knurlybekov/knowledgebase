@@ -75,7 +75,7 @@ def test_publish_creates_version_grant_chunks_and_embeddings():
 
 
 def test_replay_is_obsolete_and_same_label_takes_fast_path():
-    org, user, link, scope = setup_user()
+    org, _user, link, scope = setup_user()
     sd = make_source("gdrive:f1", "v1", title="Old title")
     fetcher = StaticFetcher({"v1": DOC_V1})
     apply_change(link, scope, make_event(1, sd), fetcher)
@@ -89,7 +89,7 @@ def test_replay_is_obsolete_and_same_label_takes_fast_path():
 
 
 def test_lower_seq_event_is_ignored():
-    org, user, link, scope = setup_user()
+    org, _user, link, scope = setup_user()
     sd = make_source("gdrive:f1", "v1")
     fetcher = StaticFetcher({"v1": DOC_V1})
     apply_change(link, scope, make_event(5, sd), fetcher)
@@ -125,7 +125,7 @@ def test_remove_revokes_grant_purges_content_and_hides_document():
 
 
 def test_tombstone_rebuild_restores_active():
-    org, user, link, scope = setup_user()
+    org, _user, link, scope = setup_user()
     sd = make_source("gdrive:f1", "v1")
     fetcher = StaticFetcher({"v1": DOC_V1})
     apply_change(link, scope, make_event(1, sd), fetcher)
@@ -229,7 +229,7 @@ def test_revalidation_uses_observation_time_not_processing_time():
 
 
 def test_expiration_sweep_purges_abandoned_versions():
-    org, user, link, scope = setup_user()
+    org, _user, link, scope = setup_user()
     sd = make_source("gdrive:f1", "v1")
     fetcher = StaticFetcher({"v1": DOC_V1})
     apply_change(link, scope, make_event(1, sd), fetcher)
@@ -242,7 +242,7 @@ def test_expiration_sweep_purges_abandoned_versions():
 
 
 def test_reconcile_sweep_revokes_not_seen_only():
-    org, user, link, scope = setup_user()
+    org, _user, link, scope = setup_user()
     fetcher = StaticFetcher({"v1": DOC_V1})
     apply_change(
         link, scope, make_event(1, make_source("gdrive:seen", "v1"), generation=1), fetcher
@@ -263,7 +263,7 @@ def test_reconcile_sweep_revokes_not_seen_only():
 
 
 def test_remove_during_download_makes_publish_stale():
-    org, user, link, scope = setup_user()
+    org, _user, link, scope = setup_user()
     sd = make_source("gdrive:f1", "v1")
     inner = StaticFetcher({"v1": DOC_V1})
     apply_change(link, scope, make_event(1, sd), inner)
@@ -282,7 +282,7 @@ def test_remove_during_download_makes_publish_stale():
 
 
 def test_revision_drift_skips_event():
-    org, user, link, scope = setup_user()
+    org, _user, link, scope = setup_user()
 
     def drifting(_sd):
         raise RevisionDrift("changed 3 times")

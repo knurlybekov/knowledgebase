@@ -1,3 +1,5 @@
+import itertools
+
 from knowledge.api import ParsedDocument, Section, chunk_document
 from knowledge.chunking import OVERLAP_CHARS, TARGET_CHARS
 
@@ -21,7 +23,7 @@ def test_long_section_splits_with_overlap_and_consistent_offsets():
     drafts = chunk_document(ParsedDocument([Section((), text, {})], "text"))
     assert len(drafts) >= 3
     assert [d.position for d in drafts] == list(range(len(drafts)))
-    for a, b in zip(drafts, drafts[1:], strict=False):
+    for a, b in itertools.pairwise(drafts):
         assert a.locator["end_char"] <= TARGET_CHARS + a.locator["start_char"]
         assert b.locator["start_char"] < a.locator["end_char"]  # overlap
         assert a.locator["end_char"] - b.locator["start_char"] <= OVERLAP_CHARS

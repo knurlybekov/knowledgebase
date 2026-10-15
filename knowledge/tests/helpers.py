@@ -132,7 +132,7 @@ def pdf_bytes(pages: list[str]) -> bytes:
     objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
     objects.append(f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(pages)} >>".encode())
     objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
-    for page_obj, content_obj, text in page_numbers:
+    for _page_obj, content_obj, text in page_numbers:
         objects.append(
             f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {content_obj} 0 R "
             f"/Resources << /Font << /F1 3 0 R >> >> >>".encode()

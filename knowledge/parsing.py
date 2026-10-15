@@ -64,7 +64,7 @@ def _parse_text(content: bytes) -> ParsedDocument:
         if m:
             flush()
             level = len(m.group(1))
-            heading_path = heading_path[: level - 1] + [m.group(2).strip()]
+            heading_path = [*heading_path[:level - 1], m.group(2).strip()]
             continue
         buffer.append(line)
     flush()
@@ -96,7 +96,7 @@ def _parse_docx(content: bytes) -> ParsedDocument:
                 level = int(style.split()[-1])
             except ValueError:
                 level = 1
-            heading_path = heading_path[: level - 1] + [text]
+            heading_path = [*heading_path[:level - 1], text]
             continue
         if text:
             buffer.append(text)
