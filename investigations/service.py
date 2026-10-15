@@ -13,6 +13,7 @@ import hashlib
 import logging
 import secrets
 import time
+import uuid
 from datetime import timedelta
 from pathlib import Path
 
@@ -97,13 +98,8 @@ def get_investigation(principal: Principal, investigation_id) -> dict | None:
                 "finished_at": row.finished_at,
                 "metadata_only": True,
             }
-        version_ids = list(
-            InvestigationEvidence.objects.filter(investigation=row).values_list(
-                "version_id", flat=True
-            )
-        )
         visible = row.content_state == Investigation.CONTENT_PRESENT and versions_visible(
-            principal, version_ids
+            principal, _supplied_versions(row)
         )
         activity = [
             {
@@ -407,11 +403,7 @@ def _complete(org_id, row: Investigation, client: RunnerClient, terminal_event: 
             owner = Principal(
                 user=row.user, organization=row.organization, role="member", investigation=row
             )
-            supplied = list(
-                InvestigationEvidence.objects.filter(investigation_id=row.id)
-                .values_list("version_id", flat=True)
-                .distinct()
-            )
+            supplied = _supplied_versions(row)
             if not versions_visible(owner, supplied):
                 Investigation.objects.filter(
                     id=row.id, status=Investigation.STATUS_RUNNING, attempt=row.attempt
@@ -426,6 +418,7 @@ def _complete(org_id, row: Investigation, client: RunnerClient, terminal_event: 
                 "cited_evidence_ids": parsed.cited_evidence_ids,
                 "malformed": parsed.malformed,
                 "answer_verified": parsed.answer_verified,
+                "agent_prose": parsed.agent_prose,
                 "citations": _citations_for(row.id, parsed.cited_evidence_ids),
             }
             # Text is saved only while the row is still present: a purge during
@@ -647,13 +640,30 @@ def reap(org_id, client: RunnerClient | None = None) -> dict:
     return counts
 
 
+def _supplied_versions(row: Investigation) -> list:
+    """Every revision the agent saw: the durable field plus any evidence rows."""
+    ids = {uuid.UUID(str(v)) for v in (row.supplied_version_ids or [])}
+    ids |= set(
+        InvestigationEvidence.objects.filter(investigation_id=row.id).values_list(
+            "version_id", flat=True
+        )
+    )
+    return list(ids)
+
+
 def purge_investigations_for_version(version) -> int:
     """Purge hook (D6): investigations that saw this version lose their text."""
-    ids = list(
-        InvestigationEvidence.objects.filter(version=version)
-        .values_list("investigation_id", flat=True)
-        .distinct()
+    ids = set(
+        InvestigationEvidence.objects.filter(version=version).values_list(
+            "investigation_id", flat=True
+        )
     )
+    ids |= set(
+        Investigation.objects.filter(supplied_version_ids__contains=[str(version.id)]).values_list(
+            "id", flat=True
+        )
+    )
+    ids = list(ids)
     if not ids:
         return 0
     rows = list(Investigation.objects.filter(id__in=ids))

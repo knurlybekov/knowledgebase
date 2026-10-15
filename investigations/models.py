@@ -49,6 +49,9 @@ class Investigation(models.Model):
     limits = models.JSONField(default=dict)
     tool_calls_used = models.IntegerField(default=0)
     output_chars_used = models.IntegerField(default=0)
+    # Every revision any tool returned to the agent; independent of deletable evidence rows (D6).
+    supplied_version_ids = models.JSONField(default=list, blank=True)
+    # Every revision any tool returned to the agent; independent of deletable evidence rows (D6).
     error_code = models.CharField(max_length=64, blank=True, default="")
     status_detail = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(default=timezone.now, editable=False)

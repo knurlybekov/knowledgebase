@@ -23,6 +23,7 @@ class ParsedResult:
     cited_evidence_ids: list[str] = field(default_factory=list)
     malformed: bool = False
     answer_verified: bool = False  # True only when at least one statement survived validation
+    agent_prose: str = ""  # the agent's free-text answer, unverified
 
 
 def _bullets(block: str) -> list[str]:
@@ -61,8 +62,9 @@ def parse_result(text: str) -> ParsedResult:
 
 def validate_citations(parsed: ParsedResult, returned_ids: set[str]) -> ParsedResult:
     """Statements whose evidence ids were not all returned by the MCP server to
-    this investigation move to unsupported_statements. The Answer text stays,
-    but the UI shows statements as the authoritative list."""
+    this investigation move to unsupported_statements. The presented Answer is
+    built from the validated statements only; the agent's free-text answer is
+    kept separately as unverified prose and never shown as a finding."""
     kept = []
     cited: list[str] = []
     for st in parsed.statements:
@@ -75,12 +77,9 @@ def validate_citations(parsed: ParsedResult, returned_ids: set[str]) -> ParsedRe
     parsed.statements = kept
     parsed.cited_evidence_ids = sorted(set(cited))
     parsed.answer_verified = bool(kept)
-    if not kept:
-        # Nothing verifiable survived: the free-text answer is not presented as findings.
-        parsed.unsupported_statements = (
-            [parsed.answer, *parsed.unsupported_statements]
-            if parsed.answer
-            else parsed.unsupported_statements
-        )
+    parsed.agent_prose = parsed.answer
+    if kept:
+        parsed.answer = " ".join(st["text"].rstrip(".") + "." for st in kept)
+    else:
         parsed.answer = "The retrieved evidence does not establish a verifiable answer."
     return parsed

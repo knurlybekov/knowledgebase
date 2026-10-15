@@ -19,6 +19,12 @@ def test_metric_functions():
     assert not claim_supported(
         "The CEO approved it personally.", ["Employees accrue fifteen vacation days each year."]
     )
+    evidence = ["The board approved the migration. Company Beta acquired Company Alpha in 2024."]
+    assert claim_supported("Company Beta acquired Company Alpha.", evidence)
+    assert not claim_supported("The board did not approve the migration.", evidence)  # negation
+    assert not claim_supported("Company Alpha acquired Company Beta.", evidence)  # reversed roles
+    assert not claim_supported("Company Beta acquired Company Alpha in 2023.", evidence)  # number
+    assert not claim_supported("The board approved the migration secretly.", evidence)  # suffix
 
 
 @pytest.mark.django_db(transaction=True)
@@ -41,3 +47,19 @@ def test_run_eval_meets_keyword_floor(tmp_path, monkeypatch):
     assert "quick" in rows["vacation-days"][1]
     assert rows["hosting-why"][1] == "deep" and rows["hosting-why"][5] == "completed"
     assert float(rows["hosting-why"][2]) >= 0.5
+    claims, supported = int(rows["hosting-why"][6]), int(rows["hosting-why"][7])
+    assert claims >= 1 and 0 <= supported <= claims
+    assert rows["hosting-why"][9] in ("yes", "no")  # deep claim_terms are evaluated
+
+
+@pytest.mark.django_db(transaction=True)
+def test_deep_statements_are_judged_against_cited_passages(tmp_path, monkeypatch):
+    import eval.runner as runner
+
+    monkeypatch.setattr(runner, "RESULTS", tmp_path)
+    monkeypatch.setattr(runner, "_judge", lambda claim, texts: False)
+    call_command("run_eval", org="eval-judge")
+    report = next(tmp_path.glob("*.md")).read_text()
+    row = next(line for line in report.splitlines() if line.startswith("| hosting-why"))
+    cells = [c.strip() for c in row.strip("|").split("|")]
+    assert int(cells[6]) >= 1 and int(cells[7]) == 0  # every statement went through the judge

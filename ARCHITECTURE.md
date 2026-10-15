@@ -57,4 +57,4 @@ Structured JSON logs with `org_id`, `actor_id`, `request_id`, `investigation_id`
 
 ## Evaluation
 
-`make eval` (`manage.py run_eval`) ingests the synthetic corpus in `eval/corpus/` into a throwaway organization and scores `eval/golden.yaml`: recall@5, precision@5, MRR, evidence state, grounded claims (word-overlap proxy unless an LLM judge is configured), and the insufficient case. Results: `eval/results/<date>.md`. The agent path is evaluated through the in-process `FakeRunner` (end-to-end three-document test); live Hermes measurements require the image and a provider key (`pytest -m hermes`).
+`make eval` (`manage.py run_eval`) ingests the synthetic corpus in `eval/corpus/` into a throwaway organization and scores `eval/golden.yaml`: recall@5, precision@5, MRR, evidence state, grounded claims (ordered-content-word proxy unless an LLM judge is configured), and the insufficient case. Results: `eval/results/<date>.md`. The agent path is evaluated through the in-process `FakeRunner` (end-to-end three-document test); live Hermes measurements require the image and a provider key (`pytest -m hermes`).

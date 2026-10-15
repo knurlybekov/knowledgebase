@@ -27,7 +27,15 @@ from pydantic import BaseModel, Field
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import attestation
-from runs import REGISTRY_ROOT, RUNS_ROOT, Run, RunRecord, reconcile_orphans
+from runs import (
+    RECORD_TTL_S,
+    REGISTRY_ROOT,
+    RUNS_ROOT,
+    Run,
+    RunRecord,
+    expire_terminal_records,
+    reconcile_orphans,
+)
 
 SHARED_SECRET = os.environ.get("RUNNER_SHARED_SECRET", "")
 MAX_CONCURRENT = int(os.environ.get("RUNNER_MAX_CONCURRENT", "4"))
@@ -121,15 +129,13 @@ def create_run(body: CreateRun):
 @app.post("/runs/{run_key}/start", dependencies=[Depends(_auth)])
 def start_run(run_key: str):
     run = _get(run_key)
-    with _lock:
-        if run.record.state != "created":
-            _pending.pop(run_key, None)
-            return _state(run)  # idempotent, and a cancelled run never starts
-        body = _pending.pop(run_key, None)
-        if body is None:
-            raise HTTPException(
-                409, "run was created by a previous runner process; create it again"
-            )
+    body = _pending.get(run_key)
+    if run.record.state != "created":
+        _pending.pop(run_key, None)
+        return _state(run)  # idempotent, and a cancelled run never starts
+    if body is None:
+        raise HTTPException(409, "run was created by a previous runner process; create it again")
+    try:
         run.start(
             body.question,
             body.instructions,
@@ -139,6 +145,10 @@ def start_run(run_key: str):
             mcp_token=body.mcp_token,
             model=body.model,
         )
+    except OSError as exc:
+        _pending.pop(run_key, None)
+        raise HTTPException(500, f"launch failed: {exc}") from exc
+    _pending.pop(run_key, None)  # credentials leave memory once the process holds them
     return _state(run)
 
 
@@ -164,6 +174,7 @@ def get_events(run_key: str, after: int = 0, wait_s: float = 0.0):
 def cancel_run(run_key: str):
     run = _get(run_key)
     cancelled = run.cancel()
+    _pending.pop(run_key, None)  # a cancelled run keeps no credentials in memory
     return {"cancelled": cancelled, **_state(run)}
 
 
@@ -173,7 +184,8 @@ def delete_run(run_key: str):
     if run.active or not run.pump_done.wait(timeout=5.0):
         raise HTTPException(409, "run is active or still persisting; cancel it first")
     _pending.pop(run_key, None)
-    run.record.delete()
+    if not run.delete():
+        raise HTTPException(409, "run is active; cancel it first")
     _runs.pop(run_key, None)
     return {"deleted": True}
 
@@ -198,10 +210,32 @@ def main() -> None:
         else {"ok": True, "detail": "skipped by env"}
     )
     print(json.dumps({"event": "runner.attestation", **_attestation}), flush=True)
+    threading.Thread(target=_expiry_loop, daemon=True).start()
     uvicorn.run(
         app, host="0.0.0.0", port=int(os.environ.get("RUNNER_PORT", "8700")), log_level="info"
     )
 
 
-if __name__ == "__main__":
-    main()
+def _expire_once() -> int:
+    """Expire terminal records on disk and in memory. Returns the disk count."""
+    n = expire_terminal_records()
+    now = time.time()
+    for key in [
+        k
+        for k, r in list(_runs.items())
+        if r.record.state not in ("created", "running") and now - r.record.updated_at > RECORD_TTL_S
+    ]:
+        _runs.pop(key, None)
+    return n
+
+
+def _expiry_loop() -> None:
+    """Periodic expiration of terminal records on disk and in memory."""
+    while True:
+        time.sleep(600)
+        try:
+            n = _expire_once()
+            if n:
+                print(json.dumps({"event": "runner.expired_records", "count": n}), flush=True)
+        except Exception as exc:
+            print(json.dumps({"event": "runner.expiry_error", "error": str(exc)[:200]}), flush=True)

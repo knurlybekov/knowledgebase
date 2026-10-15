@@ -131,7 +131,7 @@ def write_report(rows: list[QueryResult], meta: dict) -> Path:
     lines += [
         "",
         "Interpretation: with `EMBEDDER=mock` the vector leg carries no meaning and the keyword leg does the work, so these "
-        "numbers describe the keyword path only; vector metrics need `EMBEDDER=openai`. The support check is a word-overlap proxy "
+        "numbers describe the keyword path only; vector metrics need `EMBEDDER=openai`. The support check is a ordered-content-word proxy "
         "unless `EVAL_JUDGE=anthropic` and a key are set. Deep queries run through the real investigation lifecycle with the "
         "in-process FakeRunner driving the MCP tools (evidence coverage and citation validity of the agent path, no model); "
         "live Hermes numbers appear only when the `hermes` marker tests ran.",
@@ -184,9 +184,23 @@ def run_deep(principal, query: dict) -> QueryResult:
         evidence_state=outcome,
     )
     result = row.result or {}
-    qr.claims = len(result.get("statements", []))
-    qr.supported = sum(1 for st in result.get("statements", []) if st["evidence_ids"])
+    statements = result.get("statements", [])
+    qr.claims = len(statements)
+    # Grounding: each statement judged (proxy or configured judge) against the
+    # passages it cites, not merely by the presence of evidence ids.
+    cited_text = {c["evidence_id"]: c["excerpt"] for c in result.get("citations", [])}
+    qr.supported = sum(
+        1
+        for st in statements
+        if _judge(
+            st["text"], [cited_text.get(e, "") for e in st["evidence_ids"] if e in cited_text]
+        )
+    )
     qr.unsupported_listed = len(result.get("unsupported_statements", []))
+    terms = query.get("claim_terms") or []
+    if terms:
+        joined = " ".join(st["text"] for st in statements).lower()
+        qr.expected_terms_hit = all(t.lower() in joined for t in terms)
     qr.notes.append(f"tool_calls={row.tool_calls_used}")
     qr.latency_ms = int((time.monotonic() - started) * 1000)
     return qr
@@ -198,7 +212,7 @@ def judge_name() -> str:
     judge = os.environ.get("EVAL_JUDGE", "")
     if judge == "anthropic" and settings.ANTHROPIC_API_KEY:
         return "anthropic LLM judge"
-    return "word-overlap proxy" + (" (EVAL_JUDGE set but no key: judge not run)" if judge else "")
+    return "ordered-content-word proxy" + (" (EVAL_JUDGE set but no key: judge not run)" if judge else "")
 
 
 def run_all(principal) -> tuple[list[QueryResult], Path]:

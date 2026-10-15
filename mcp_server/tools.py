@@ -15,9 +15,27 @@ DOCUMENT_WINDOW_CHARS = 8000
 SOURCE_TYPES = {"google_drive", "sharepoint"}
 
 
+def delivered_evidence(chunk_id, version_id, version_label: str, start: int, excerpt: str):
+    """Deterministic evidence coordinates: span offsets are chunk-text offsets
+    added to the chunk locator's start_char, so the span covers exactly the
+    delivered excerpt (a prefix of the chunk text when `start` is start_char).
+    Returns (evidence_id, (chunk_id, version_id, start, end))."""
+    end = start + len(excerpt)
+    return f"chunk:{chunk_id}@{version_label}[{start}:{end}]", (
+        str(chunk_id),
+        str(version_id),
+        start,
+        end,
+    )
+
+
 def _result_item(r) -> dict:
+    excerpt = sanitize(r.excerpt[:EXCERPT_CHARS])
+    evidence_id, _ = delivered_evidence(
+        r.chunk_id, r.version_id, r.version_label, r.locator.get("start_char", 0), excerpt
+    )
     return {
-        "evidence_id": r.evidence_id,
+        "evidence_id": evidence_id,
         "chunk_id": r.chunk_id,
         "document_id": r.document_id,
         "title": sanitize(r.title),
@@ -26,7 +44,7 @@ def _result_item(r) -> dict:
         "version_label": r.version_label,
         "heading_path": [sanitize(h) for h in r.heading_path],
         "locator": r.locator,
-        "excerpt": sanitize(r.excerpt[:EXCERPT_CHARS]),
+        "excerpt": excerpt,
     }
 
 
@@ -39,11 +57,18 @@ def search_knowledge(principal, investigation, args: dict) -> dict:
     results = search(
         principal, query[:1000], source_types=source_types or None, limit=limit, mode="deep"
     )
+    items = [_result_item(r) for r in results]
     evidence = [
-        (r.chunk_id, r.version_id, r.locator.get("start_char", 0), r.locator.get("end_char", 0))
-        for r in results
+        delivered_evidence(
+            r.chunk_id,
+            r.version_id,
+            r.version_label,
+            r.locator.get("start_char", 0),
+            item["excerpt"],
+        )[1]
+        for r, item in zip(results, items, strict=True)
     ]
-    return {"query": query, "results": [_result_item(r) for r in results], "_evidence": evidence}
+    return {"query": query, "results": items, "_evidence": evidence}
 
 
 def get_document(principal, investigation, args: dict) -> dict:
@@ -83,16 +108,20 @@ def get_document(principal, investigation, args: dict) -> dict:
     # coordinates are section-relative, so the overlap is computed on the text.
     evidence = []
     evidence_ids = []
+    doc_offsets = {}
     for c in chunks:
         body = c.text.split("\n", 1)[-1] if c.heading_path else c.text
         probe = body[:80]
         at = text.find(probe) if probe else -1
         if at < 0 or at >= end or at + len(body) <= start:
             continue
-        start_char = c.locator.get("start_char", 0)
-        end_char = c.locator.get("end_char", 0)
-        evidence.append((str(c.id), str(version.id), start_char, end_char))
-        evidence_ids.append(f"chunk:{c.id}@{version.version_label}[{start_char}:{end_char}]")
+        # Chunk-relative span of the part of this chunk that the window delivers.
+        head = len(c.text) - len(body)
+        span_start = c.locator.get("start_char", 0) + head + max(0, start - at)
+        span_end = c.locator.get("start_char", 0) + head + min(len(body), end - at)
+        evidence.append((str(c.id), str(version.id), span_start, span_end))
+        evidence_ids.append(f"chunk:{c.id}@{version.version_label}[{span_start}:{span_end}]")
+        doc_offsets[str(c.id)] = (at, c.locator.get("start_char", 0) + head)
     return {
         "document_id": str(document.id),
         "title": sanitize(document.title),
@@ -107,6 +136,7 @@ def get_document(principal, investigation, args: dict) -> dict:
         "content": window,
         "evidence_ids": evidence_ids,
         "_evidence": evidence,
+        "_doc_offsets": doc_offsets,
     }
 
 

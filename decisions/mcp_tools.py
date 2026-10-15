@@ -17,7 +17,7 @@ from knowledge.api import DocumentReference, visible_document, visible_versions
 from retrieval.api import Chunk, Embedding, get_embedder, search
 
 from .models import DecisionEvidence, DecisionRecord
-from .service import EvidenceInput, create_candidate
+from .service import EvidenceInput, create_candidate, record_visible
 
 _DATE = re.compile(
     r"\b(20\d{2}-\d{2}-\d{2}|\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+20\d{2}|\b(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\w*\.?\s+\d{1,2},?\s+20\d{2})\b"
@@ -32,7 +32,7 @@ def _safe(text: str | None) -> str:
 
 
 def trace_decision(principal, investigation, args: dict) -> dict:
-    from mcp_server.api import ToolError, safe_source_url
+    from mcp_server.api import ToolError, delivered_evidence, safe_source_url
 
     topic = str(args.get("topic") or "").strip()
     if not topic:
@@ -49,13 +49,39 @@ def trace_decision(principal, investigation, args: dict) -> dict:
         )
         .distinct()
     )
-    visible = set(visible_versions(principal).values_list("id", flat=True))
     items = []
     evidence = []
+    dependencies: set[str] = set()
     for record in records[:20]:
         ev = list(DecisionEvidence.objects.filter(record=record).select_related("document"))
-        if not ev or any(e.version_id not in visible for e in ev):
-            continue  # evidence-bound: skip records the user cannot fully see
+        if not ev or not record_visible(principal, record):
+            continue  # evidence-bound: cited and supplied revisions must all be visible
+        # The record's prose may carry information from any supplied revision:
+        # all of them become dependencies of the receiving investigation.
+        dependencies.update(str(v) for v in (record.supplied_version_ids or []))
+        record_evidence = []
+        for e in ev:
+            excerpt = _safe(e.excerpt)[:500]
+            evidence_id = None
+            if e.chunk_id:
+                evidence_id, span = delivered_evidence(
+                    e.chunk_id,
+                    e.version_id,
+                    e.version_label,
+                    e.chunk.locator.get("start_char", 0),
+                    excerpt,
+                )
+                evidence.append(span)
+            record_evidence.append(
+                {
+                    "role": e.role,
+                    "excerpt": excerpt,
+                    "document_id": str(e.document_id),
+                    "title": _safe(e.document.title),
+                    "version_label": e.version_label,
+                    "evidence_id": evidence_id,
+                }
+            )
         label = "confirmed" if record.status == DecisionRecord.STATUS_VERIFIED else "recorded"
         items.append(
             {
@@ -69,50 +95,31 @@ def trace_decision(principal, investigation, args: dict) -> dict:
                 "superseded_by": str(record.superseded_by_id) if record.superseded_by_id else None,
                 "alternatives": record.alternatives or [],
                 "rationale": _safe(record.recorded_rationale),
-                "evidence": [
-                    {
-                        "role": e.role,
-                        "excerpt": _safe(e.excerpt)[:500],
-                        "document_id": str(e.document_id),
-                        "title": _safe(e.document.title),
-                        "version_label": e.version_label,
-                        "evidence_id": f"chunk:{e.chunk_id}@{e.version_label}[{(e.chunk.locator.get('start_char', 0) if e.chunk else 0)}:{(e.chunk.locator.get('end_char', 0) if e.chunk else 0)}]"
-                        if e.chunk_id
-                        else None,
-                    }
-                    for e in ev
-                ],
+                "evidence": record_evidence,
             }
         )
-        for e in ev:
-            if e.chunk_id:
-                evidence.append(
-                    (
-                        str(e.chunk_id),
-                        str(e.version_id),
-                        e.chunk.locator.get("start_char", 0),
-                        e.chunk.locator.get("end_char", 0),
-                    )
-                )
+    hits = search(principal, f"{topic} {CUES}", limit=10, mode="deep")
     hits = search(principal, f"{topic} {CUES}", limit=10, mode="deep")
     for r in hits:
         dates = sorted(set(_DATE.findall(r.text)))
+        excerpt = _safe(r.excerpt)
+        evidence_id, span = delivered_evidence(
+            r.chunk_id, r.version_id, r.version_label, r.locator.get("start_char", 0), excerpt
+        )
         items.append(
             {
                 "kind": "passage",
                 "label": "inferred",
-                "evidence_id": r.evidence_id,
+                "evidence_id": evidence_id,
                 "document_id": r.document_id,
                 "title": _safe(r.title),
                 "source_url": safe_source_url(r.source_url, r.source_type),
                 "version_label": r.version_label,
-                "excerpt": _safe(r.excerpt),
+                "excerpt": excerpt,
                 "possible_dates": dates[:5],
             }
         )
-        evidence.append(
-            (r.chunk_id, r.version_id, r.locator.get("start_char", 0), r.locator.get("end_char", 0))
-        )
+        evidence.append(span)
     return {
         "topic": topic,
         "time_range": time_range,
@@ -120,11 +127,12 @@ def trace_decision(principal, investigation, args: dict) -> dict:
         "guidance": "confirmed = quoted evidence of a verified record; recorded = a candidate or draft awaiting review; "
         "inferred = a passage found by search. Dates are strings found in the text, not established facts.",
         "_evidence": evidence,
+        "_dependency_versions": sorted(dependencies),
     }
 
 
 def find_related_documents(principal, investigation, args: dict) -> dict:
-    from mcp_server.api import ToolError, safe_source_url
+    from mcp_server.api import ToolError, delivered_evidence, safe_source_url
 
     document_id = str(args.get("document_id") or "").strip()
     limit = max(1, min(int(args.get("limit") or 10), 20))
@@ -217,6 +225,14 @@ def find_related_documents(principal, investigation, args: dict) -> dict:
             if chunk.document_id in seen:
                 continue
             seen.add(chunk.document_id)
+            excerpt = _safe(chunk.text[:300])
+            evidence_id, span = delivered_evidence(
+                chunk.id,
+                chunk.version_id,
+                chunk.version.version_label,
+                chunk.locator.get("start_char", 0),
+                excerpt,
+            )
             similar.append(
                 {
                     "label": "similar",
@@ -226,18 +242,11 @@ def find_related_documents(principal, investigation, args: dict) -> dict:
                         chunk.document.source_url, chunk.document.source_type
                     ),
                     "distance": round(float(distance), 4),
-                    "evidence_id": f"chunk:{chunk.id}@{chunk.version.version_label}[{chunk.locator.get('start_char', 0)}:{chunk.locator.get('end_char', 0)}]",
-                    "excerpt": _safe(chunk.text[:300]),
+                    "evidence_id": evidence_id,
+                    "excerpt": excerpt,
                 }
             )
-            evidence.append(
-                (
-                    str(chunk.id),
-                    str(chunk.version_id),
-                    chunk.locator.get("start_char", 0),
-                    chunk.locator.get("end_char", 0),
-                )
-            )
+            evidence.append(span)
             if len(similar) >= limit:
                 break
     return {
@@ -262,6 +271,10 @@ def draft_knowledge_record(principal, investigation, args: dict) -> dict:
         raise ToolError("invalid_argument", "topic and evidence_ids are required")
     if record_type != "decision":
         raise ToolError("invalid_argument", "only record_type 'decision' is supported")
+    if investigation.content_state != "present":
+        raise ToolError(
+            "not_running", "this investigation lost access to a source it read; drafting is refused"
+        )
     returned = {
         f"chunk:{e.chunk_id}@{e.version.version_label}[{e.span_start}:{e.span_end}]": str(
             e.chunk_id

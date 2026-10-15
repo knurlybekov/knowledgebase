@@ -4,9 +4,9 @@ Repository audit result: the "existing application" was an empty `django-admin s
 
 ## Test results
 
-`make test` on the compose Postgres (kb_migrator role, real RLS): **111 passed, 1 skipped** (the skipped test is the live Hermes attestation, which needs a provider key). Lint (`ruff`) clean. Live markers: `pytest -m hermes` (needs `kb-hermes-agent:dev` and `ANTHROPIC_API_KEY`), `pytest -m live` (provider calls).
+`make test` on the compose Postgres (kb_migrator role, real RLS): **125 passed, 1 skipped** (the skipped test is the live Hermes attestation, which needs a provider key). Lint (`ruff`) clean. Live markers: `pytest -m hermes` (needs `kb-hermes-agent:dev` and `ANTHROPIC_API_KEY`), `pytest -m live` (provider calls).
 
-Evaluation (`make eval`, mock embedder, stub composer, synthetic corpus): `eval/results/2026-10-15.md`. Quick queries: recall@5 = 1.00 and MRR ≥ 0.5 on the three answerable ones through the keyword path; the unanswerable query returns `insufficient`; stub claims pass the support proxy (normalized substring or ≥80% word overlap with matching negation and numbers). Deep queries run through the real investigation lifecycle with the in-process FakeRunner driving the MCP tools: all three complete with recall@5 = 1.00 over the relevant documents and every statement cites evidence that was returned to the investigation (the statements themselves are the scripted fake's excerpt sentences, not model output). Vector-leg quality, LLM-judged grounding and live Hermes behavior are not measured without provider keys.
+Evaluation (`make eval`, mock embedder, stub composer, synthetic corpus): `eval/results/2026-10-15.md`. Quick queries: recall@5 = 1.00 and MRR ≥ 0.5 on the three answerable ones through the keyword path; the unanswerable query returns `insufficient`; stub claims pass the support proxy (normalized substring, or every content word in order with matching negation and numbers). Deep queries run through the real investigation lifecycle with the in-process FakeRunner driving the MCP tools: all three complete with recall@5 = 1.00 over the relevant documents and every statement cites evidence that was returned to the investigation (the statements themselves are the scripted fake's excerpt sentences, not model output). Vector-leg quality, LLM-judged grounding and live Hermes behavior are not measured without provider keys.
 
 ## Acceptance criteria
 
@@ -44,4 +44,4 @@ Evaluation (`make eval`, mock embedder, stub composer, synthetic corpus): `eval/
 
 ## Codex inspections
 
-Sprint 1: 17 findings, all fixed (commit c9b55ce). Sprints 2–3: 23 findings, all fixed (commit 1a919b4), including two real races the regression tests exposed (purge erasing the runner record of a still-running investigation; a stale token acting under a newer attempt). Findings and dispositions are in `PLAN-REVIEW-LOG.md`. The reinspection result is appended there.
+Sprint 1: 17 findings, all fixed (commit c9b55ce). Sprints 2–3: 23 findings, all fixed (commit 1a919b4), including two real races the regression tests exposed (purge erasing the runner record of a still-running investigation; a stale token acting under a newer attempt). Reinspection (round 2 of 2, at commit d01ae9b): 14 remaining findings, all fixed in the commit that follows 16c7dbb, with 14 regression tests (`investigations/tests/test_reinspection_s23.py`, `decisions/tests/test_reinspection_s23.py`, `eval/test_eval_framework.py`). Findings and dispositions are in `PLAN-REVIEW-LOG.md`.

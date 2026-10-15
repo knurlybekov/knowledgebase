@@ -14,6 +14,7 @@ import re
 from collections.abc import Callable
 
 from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import connection, transaction
 from django.utils import timezone
 
@@ -181,12 +182,18 @@ def _authorize_and_run(headers, tool_name, arguments, impl) -> dict:
                 # Expected denials commit: the attempted call stays counted and audited.
                 _deny(token, investigation, tool_name, exc)
                 return exc.payload()
+            except (DjangoValidationError, ValueError, TypeError, KeyError) as exc:
+                exc2 = ToolError("invalid_argument", f"invalid argument: {type(exc).__name__}")
+                _deny(token, investigation, tool_name, exc2)
+                return exc2.payload()
             evidence = result.pop("_evidence", [])  # [(chunk_id, version_id, start, end)]
+            doc_offsets = result.pop("_doc_offsets", {})
+            dependencies = result.pop("_dependency_versions", [])  # revisions behind returned prose
             payload = {"notice": DATA_NOTICE, **result}
             text = json.dumps(payload, ensure_ascii=False)
             allocated = _allocate_output(investigation.id, token_run_key, len(text))
             if allocated < len(text):
-                payload, text, evidence = _trim(payload, allocated, evidence)
+                payload, text, evidence = _trim(payload, allocated, evidence, doc_offsets)
                 if payload is None:
                     _release_output(investigation.id, allocated)
                     exc = ToolError(
@@ -194,6 +201,13 @@ def _authorize_and_run(headers, tool_name, arguments, impl) -> dict:
                     )
                     _deny(token, investigation, tool_name, exc)
                     return exc.payload()
+            supplied = set(investigation.supplied_version_ids or [])
+            supplied |= {str(v) for _, v, _, _ in evidence}
+            supplied |= {str(v) for v in dependencies}
+            if supplied != set(investigation.supplied_version_ids or []):
+                Investigation.objects.filter(id=investigation.id).update(
+                    supplied_version_ids=sorted(supplied)
+                )
             for chunk_id, version_id, start, end in evidence:
                 InvestigationEvidence.objects.get_or_create(
                     investigation=investigation,
@@ -231,40 +245,101 @@ def _deny(token, investigation, tool_name: str, exc: ToolError) -> None:
     metrics.access_denied_total.labels(path=f"mcp.{exc.code}").inc()
 
 
-def _trim(payload: dict, allocated: int, evidence: list):
-    """Fit the payload into `allocated` characters by shortening excerpts (shortest
-    first) and dropping trailing results, keeping the JSON valid. Returns
-    (None, "", []) when even the minimum envelope does not fit."""
+_EVIDENCE_ID = re.compile(r"^chunk:([0-9a-f-]{36})@(.*)\[(\d+):(\d+)\]$")
+
+
+def _items(payload: dict):
+    """Every dict item in the payload's lists, including nested evidence lists."""
+    stack = [v for v in payload.values() if isinstance(v, list)]
+    while stack:
+        for item in stack.pop():
+            if isinstance(item, dict):
+                yield item
+                stack.extend(v for v in item.values() if isinstance(v, list))
+
+
+def _delivered_by_chunk(payload: dict) -> dict:
+    """chunk id -> longest delivered excerpt among the items that cite it."""
+    out: dict = {}
+    for item in _items(payload):
+        m = _EVIDENCE_ID.match(str(item.get("evidence_id") or ""))
+        if m:
+            excerpt = item.get("excerpt") or ""
+            if len(excerpt) >= len(out.get(m.group(1), "")):
+                out[m.group(1)] = excerpt
+    return out
+
+
+def _trim(payload: dict, allocated: int, evidence: list, doc_offsets: dict | None = None):
+    """Fit the payload into `allocated` characters by shortening excerpts (longest
+    first) and dropping trailing list items, keeping the JSON structure valid.
+    Evidence ids and persisted spans are regenerated from the delivered text:
+    a shortened excerpt gets a shorter span, a dropped item loses its evidence,
+    and dependency rows that never cited an item (record dependencies) stay.
+    Returns (None, "", []) when even the minimum envelope does not fit."""
     minimum = settings.MCP_MIN_RESPONSE_CHARS
     if allocated < minimum:
         return None, "", []
-    results = payload.get("results")
-    if isinstance(results, list):
-        for _ in range(60):
+    before = _delivered_by_chunk(payload)
+    lists = [
+        v for v in payload.values() if isinstance(v, list) and any(isinstance(i, dict) for i in v)
+    ]
+    if lists:
+        for _ in range(200):
             text = json.dumps(payload, ensure_ascii=False)
             if len(text) <= allocated:
                 break
-            longest = max(
-                range(len(results)), key=lambda i: len(results[i].get("excerpt", "")), default=None
-            )
-            if longest is not None and len(results[longest].get("excerpt", "")) > 80:
-                results[longest]["excerpt"] = results[longest]["excerpt"][
-                    : max(80, len(results[longest]["excerpt"]) // 2)
-                ]
+            items = [i for i in _items(payload) if len(i.get("excerpt") or "") > 80]
+            if items:
+                longest = max(items, key=lambda i: len(i["excerpt"]))
+                longest["excerpt"] = longest["excerpt"][: max(80, len(longest["excerpt"]) // 2)]
                 continue
-            if results:
-                results.pop()
+            biggest = max(lists, key=len)
+            if biggest:
+                biggest.pop()
                 continue
             break
-        kept = {r.get("chunk_id") for r in results}
-        evidence = [e for e in evidence if str(e[0]) in kept]
+        after = _delivered_by_chunk(payload)
+        for item in _items(payload):
+            m = _EVIDENCE_ID.match(str(item.get("evidence_id") or ""))
+            if m:
+                start = int(m.group(3))
+                item["evidence_id"] = (
+                    f"chunk:{m.group(1)}@{m.group(2)}[{start}:{start + len(item.get('excerpt') or '')}]"
+                )
+        new_evidence = []
+        for chunk_id, version_id, start, end in evidence:
+            if str(chunk_id) not in before:
+                new_evidence.append((chunk_id, version_id, start, end))  # dependency row
+            elif str(chunk_id) in after:
+                new_evidence.append(
+                    (chunk_id, version_id, start, min(end, start + len(after[str(chunk_id)])))
+                )
+        evidence = new_evidence
     else:
         content = payload.get("content", "")
         overhead = len(json.dumps({**payload, "content": ""}, ensure_ascii=False))
         room = max(0, allocated - overhead)
         payload["content"] = content[:room]
         payload["truncated"] = True
-        evidence = [e for e in evidence if e[2] < room]
+        window = payload.get("window") or {}
+        new_end = window.get("start", 0) + len(payload["content"])
+        if "end" in window:
+            window["end"] = new_end
+        label = payload.get("version_label", "")
+        new_evidence = []
+        ids = []
+        for chunk_id, version_id, start, end in evidence:
+            at, base = (doc_offsets or {}).get(str(chunk_id), (None, None))
+            if at is None:
+                continue
+            new_span_end = min(end, base + max(0, new_end - at))
+            if new_span_end > start:
+                new_evidence.append((chunk_id, version_id, start, new_span_end))
+                ids.append(f"chunk:{chunk_id}@{label}[{start}:{new_span_end}]")
+        evidence = new_evidence
+        if "evidence_ids" in payload:
+            payload["evidence_ids"] = ids
     text = json.dumps(payload, ensure_ascii=False)
     if len(text) > allocated:
         return None, "", []

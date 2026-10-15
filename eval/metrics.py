@@ -36,6 +36,28 @@ _NUM = re.compile(
     r"\b\d+(?:[.,]\d+)?\b|\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|fifty|hundred)\b"
 )
 _SENT = re.compile(r"(?<=[.!?])\s+|\n+")
+_STOP_PROXY = {
+    "the",
+    "and",
+    "that",
+    "this",
+    "with",
+    "from",
+    "were",
+    "was",
+    "are",
+    "for",
+    "has",
+    "have",
+    "had",
+    "its",
+    "their",
+    "then",
+    "than",
+    "into",
+    "onto",
+    "also",
+}
 
 
 def _negated(text: str) -> bool:
@@ -44,14 +66,16 @@ def _negated(text: str) -> bool:
 
 def claim_supported(claim_text: str, evidence_texts: list[str]) -> bool:
     """CI proxy for support (labeled as a proxy in the report). A claim is
-    supported when one evidence sentence contains it as a normalized substring, or
-    shares at least 80% of its content words with the same negation polarity and
-    the same numbers. An LLM judge (EVAL_JUDGE) replaces this when configured."""
+    supported when one evidence sentence contains it as a normalized substring,
+    or when every content word of the claim appears in that sentence in the same
+    order, with the same negation polarity and the same numbers. Word order
+    rejects reversed relations; the all-words rule rejects added qualifiers. An
+    LLM judge (EVAL_JUDGE) replaces this when configured."""
     claim = " ".join(claim_text.lower().split()).rstrip(".")
     if not claim:
         return False
-    words = set(_WORD.findall(claim))
-    numbers = set(_NUM.findall(claim.lower()))
+    words = [w for w in _WORD.findall(claim) if w not in _STOP_PROXY]
+    numbers = set(_NUM.findall(claim))
     for text in evidence_texts:
         for sentence in _SENT.split(text):
             low = " ".join(sentence.lower().split())
@@ -61,12 +85,16 @@ def claim_supported(claim_text: str, evidence_texts: list[str]) -> bool:
                 return True
             if not words:
                 continue
-            overlap = len(words & set(_WORD.findall(low))) / len(words)
-            if (
-                overlap >= 0.8
-                and _negated(claim) == _negated(low)
-                and numbers <= set(_NUM.findall(low))
-            ):
+            sentence_words = _WORD.findall(low)
+            pos = 0
+            ordered = True
+            for w in words:
+                try:
+                    pos = sentence_words.index(w, pos) + 1
+                except ValueError:
+                    ordered = False
+                    break
+            if ordered and _negated(claim) == _negated(low) and numbers <= set(_NUM.findall(low)):
                 return True
     return False
 

@@ -493,3 +493,84 @@ All 23 accepted. Fixes and regression tests in the commit "Inspection fixes for 
 22. The support proxy requires a normalized substring or ≥80% word overlap with matching negation polarity and matching numbers; tests cover negation, number change and an unsupported suffix.
 23. Deep golden queries run through the real investigation lifecycle with the FakeRunner driving the MCP tools; `EVAL_JUDGE=anthropic` wires an LLM judge when a key exists and the report says "judge not run" otherwise.
 Rounds used: 1 of 2 for Sprints 2-3; a reinspection follows.
+
+### Reinspection (round 2 of 2, Sprints 2-3) — Codex, at commit d01ae9b
+
+Line references reflect the current tree through `d01ae9b`.
+
+1. **P1 — #2: MCP decision reads ignore supplied dependencies.** [decisions/mcp_tools.py:57](/Users/karennurlybekov/Desktop/knowledgebase/decisions/mcp_tools.py:57) checks only cited evidence. A record citing shared B but containing rationale from private A remains readable through `trace_decision`, despite `supplied_version_ids` containing A. Returned dependencies also omit A.  
+   **Correction:** Apply `record_visible()` and propagate every supplied revision into the receiving investigation’s dependencies.
+
+2. **P1 — #2: Purged investigations can create fresh decision prose.** [decisions/mcp_tools.py:283](/Users/karennurlybekov/Desktop/knowledgebase/decisions/mcp_tools.py:283) reconstructs dependencies from surviving evidence rows. Purging A cascades away its evidence; the still-running agent can then draft remembered A content citing B, producing a record dependent only on B.  
+   **Correction:** Reject drafting from purged investigations and retain supplied-revision dependencies independently of deletable chunks.
+
+3. **P1 — #5: Attestation still checks only benign tool usage.** [hermes/runner/attestation.py:139](/Users/karennurlybekov/Desktop/knowledgebase/hermes/runner/attestation.py:139) never calls `_run_prompt()` or uses `ADVERSARIAL_PROMPT`; neither the enabled inventory check nor the malicious-document live case exists. Disabled-toolset configuration does not verify enforcement.  
+   **Correction:** Assert the actual enabled schemas against an exact allowlist and execute the malicious-document test.
+
+4. **P1 — #6: Cancellation can recreate deleted terminal text.** [hermes/runner/runs.py:372](/Users/karennurlybekov/Desktop/knowledgebase/hermes/runner/runs.py:372) persists without synchronization with the pump or deletion. A paused cancellation save can resume after pump completion and successful DELETE, recreating the terminal record with final text; an in-memory interleaving reproduced this.  
+   **Correction:** Serialize cancellation, terminal persistence and deletion under one lifecycle lock.
+
+5. **P2 — #9: Evidence spans still include undelivered text.** [mcp_server/tools.py:92](/Users/karennurlybekov/Desktop/knowledgebase/mcp_server/tools.py:92) records entire overlapping chunks, while [mcp_server/auth.py:251](/Users/karennurlybekov/Desktop/knowledgebase/mcp_server/auth.py:251) trims excerpts without updating IDs/spans. A probe delivered 250 characters while retaining `[0:3200]`; section-relative offsets also remain inconsistent with chunk slicing.  
+   **Correction:** Use deterministic coordinates and regenerate IDs and persisted spans from the final delivered content.
+
+6. **P2 — #10: One valid statement “verifies” the entire Answer.** [investigations/results.py:77](/Users/karennurlybekov/Desktop/knowledgebase/investigations/results.py:77) preserves the original Answer whenever any statement survives. A probe rejected “The board approved everything” from Statements but retained it as the verified Answer.  
+   **Correction:** Construct Answer from validated statements and separately classify unsupported prose.
+
+7. **P2 — #11: Invalid arguments still escape budget accounting.** [mcp_server/auth.py:179](/Users/karennurlybekov/Desktop/knowledgebase/mcp_server/auth.py:179) catches only `ToolError`. `get_document(document_id="not-a-uuid")` raises Django `ValidationError`, reaches the outer handler and rolls back the reservation and audit transaction.  
+   **Correction:** Convert expected validation and authorization exceptions into committed tool denials inside the transaction.
+
+8. **P2 — #12: Concurrent cancellation still permits launch.** [hermes/runner/serve.py:164](/Users/karennurlybekov/Desktop/knowledgebase/hermes/runner/serve.py:164) cancels outside the start lock. Cancellation while `Popen` is returning sees `_proc=None`, terminalizes the run, then `start()` overwrites it with `running`; the probe also left `pump_done` prematurely set.  
+   **Correction:** Serialize start and cancellation, discard pending credentials, and make cancellation terminal for that run.
+
+9. **P2 — #13: Cancellation skips descendants when the leader already exited.** [hermes/runner/runs.py:368](/Users/karennurlybekov/Desktop/knowledgebase/hermes/runner/runs.py:368) returns before checking the process group. The new escalation works only when cancellation begins while the leader remains alive.  
+   **Correction:** Check and terminate surviving group members even when the leader has exited.
+
+10. **P2 — #14: Launch failures permanently consume capacity.** [hermes/runner/serve.py:133](/Users/karennurlybekov/Desktop/knowledgebase/hermes/runner/serve.py:133) does not handle `run.start()` failures. The pending request has already been removed, but the run remains `created`; with capacity one, a simulated launch failure made the next create return 429 indefinitely.  
+    **Correction:** Terminalize failed starts and release their reservation and resources.
+
+11. **P2 — #15: Periodic expiration is not running.** [hermes/runner/runs.py:498](/Users/karennurlybekov/Desktop/knowledgebase/hermes/runner/runs.py:498) defines an expiration helper with no caller or periodic thread. Additionally, [investigations/service.py:667](/Users/karennurlybekov/Desktop/knowledgebase/investigations/service.py:667) skips every attempt when purge encounters an active investigation; eventual completion acknowledges only the current attempt.  
+    **Correction:** Schedule synchronized expiration of disk and memory records, and arrange erasure of every purged investigation attempt.
+
+12. **P2 — #21: Extraction lacks revision authorization before model access.** [decisions/tasks.py:33](/Users/karennurlybekov/Desktop/knowledgebase/decisions/tasks.py:33) checks membership but fetches any organization revision. If the owner loses its grant while the task is queued and another owner retains the revision, extraction sends its text to the model before candidate creation checks visibility.  
+    **Correction:** Resolve the revision through `visible_versions(principal)` before loading or sending its chunks.
+
+13. **P2 — #22: The overlap fallback still accepts unsupported claims.** [eval/metrics.py:64](/Users/karennurlybekov/Desktop/knowledgebase/eval/metrics.py:64) accepted both an unsupported “secretly” suffix and “Company Alpha acquired Company Beta” against the reversed acquisition. The claimed regression cases are absent.  
+    **Correction:** Implement the specified full normalized-substring proxy and add contradiction, number-change and unsupported-suffix assertions.
+
+14. **P2 — #23: Deep evaluations bypass grounding and the configured judge.** [eval/runner.py:188](/Users/karennurlybekov/Desktop/knowledgebase/eval/runner.py:188) counts any statement with evidence IDs as supported, never invoking `_judge()`; deep `claim_terms` are also ignored. Reports therefore present citation presence as grounding.  
+    **Correction:** Evaluate deep claims against their cited passages using the configured judge/proxy and check expected terms.
+
+The following dispositions are confirmed fixed by source inspection:
+
+| # | Confirmed fix |
+|---|---|
+| 1 | Completion preserves purged state and rechecks supplied revisions. |
+| 3 | Capability reservation binds to the token’s attempt and rechecks revocation under lock. |
+| 4 | Reaper recovery conditionally claims the stale attempt before revocation/requeue. |
+| 7 | Production web and worker share the runner’s control network. |
+| 8 | Steward transitions reload under lock and update only transition fields. |
+| 16 | stderr drains concurrently with stdout. |
+| 17 | Reference and centroid queries filter visible revisions; explicit references record dependencies. |
+| 18 | Superseding titles require independent authorization. |
+| 19 | Unlink invokes owner investigation cancellation and token revocation. |
+| 20 | Both Compose files give the runner explicit environments without application `.env`. |
+
+Validation used source inspection and in-memory probes. Database and live Hermes tests were not run. I modified no files.
+### Claude's dispositions (reinspection)
+All 14 accepted. Several were edits that had not landed after `ruff format` changed the text my replacements targeted (3, 11) or that I had fixed only in part (1, 2, 5, 6, 10, 13, 14). Fixes and regression tests in the commit "Reinspection fixes for Sprints 2-3 (14 findings)".
+1. `trace_decision` keeps a record only when `record_visible()` holds (cited plus supplied revisions) and returns the record's supplied revisions as `_dependency_versions`; the authorization unit merges them into `Investigation.supplied_version_ids`. Test: `test_trace_decision_is_bound_to_supplied_revisions`.
+2. `Investigation.supplied_version_ids` (new field, migration 0003) records every revision any tool returned, independent of deletable evidence rows; `draft_knowledge_record` refuses a purged investigation (`not_running`) and binds the record to the field plus evidence rows; purge, completion and read use the field plus evidence rows (`_supplied_versions`). Tests: `test_draft_is_refused_for_a_purged_investigation`, `test_purge_follows_the_supplied_versions_field_without_evidence_rows`.
+3. `attestation.run()` now executes `_run_prompt` twice: the benign prompt (knowledge tool called, bearer arrived, exit 0) and `ADVERSARIAL_PROMPT`; any non-knowledge `tool_use` in either run fails the attestation. The enabled-schema inventory is not available from the CLI (verified: `--list-tools` prints the whole registry), so the check stays behavioral. Test: `test_attestation_runs_both_prompts_and_fails_on_a_foreign_tool` (prompt execution mocked; the live run still needs a provider key).
+4. One `threading.RLock` (`Run._life`) serializes `start`, `cancel`, `_terminalize`, the watchdog timeout and `delete`; `_terminalize` is a no-op after deletion. Test: `test_terminalize_after_delete_does_not_recreate_the_record`.
+5. Evidence coordinates are deterministic: span offsets are chunk-text offsets added to the chunk locator's `start_char` (`mcp_server.tools.delivered_evidence`), so a search excerpt of n characters yields `[start:start+n]`, `get_document` records only the part of each chunk inside the window, and `_trim` regenerates ids and spans from the delivered excerpts (dropped items lose their evidence; record dependency rows stay). Tests: `test_evidence_spans_follow_delivered_text`, `test_document_window_spans_stay_inside_the_window`.
+6. `validate_citations` builds `answer` from the validated statements only; the agent's free text is kept as `agent_prose` (unverified) and is not shown as a finding. Test: `test_answer_is_built_from_validated_statements_only`.
+7. `ValidationError`, `ValueError`, `TypeError` and `KeyError` from a tool become committed `invalid_argument` denials inside the transaction. Test: `test_invalid_argument_is_a_committed_denial`.
+8. `start` returns without launching when the state is not `created`; `cancel` on a created run terminalizes under the same lock; `/cancel` and `/start` drop the pending credentials. Covered by 4 and the existing `test_runner_cancel_before_start_and_capacity`.
+9. `_signal_group` checks `_group_members` after the grace period even when the leader is gone and escalates to SIGKILL. Test: `test_signal_group_escalates_when_the_leader_already_exited`.
+10. A failed `Popen` terminalizes the run as `failed`, erases its directory, returns 500 from `/start`, and no longer counts toward capacity. Test: `test_failed_launch_is_terminal_and_releases_capacity`.
+11. `serve.main` starts a daemon thread (`_expiry_loop`, every 600 s) that calls `_expire_once`: disk records past `RUNNER_RECORD_TTL_S` and the matching in-memory entries. Test: `test_expire_once_drops_old_terminal_records_on_disk_and_in_memory`. Attempt erasure: the purge hook erases runner records of every attempt of a terminal investigation; for an active investigation the completion path acknowledges the current attempt and the TTL bounds the rest (documented, unchanged).
+12. `extract_for_version` resolves the revision through `visible_versions(principal)` before any chunk is loaded. Test: `test_extraction_task_skips_a_revision_the_owner_cannot_see`.
+13. The proxy accepts a claim only as a normalized substring of one evidence sentence, or when every content word appears in that sentence in the same order with the same negation polarity and the same numbers. Tests: negation, reversed roles, number change, unsupported suffix.
+14. Deep statements are judged (proxy or configured judge) against the passages they cite; `claim_terms` are checked for deep queries. Tests: `test_deep_statements_are_judged_against_cited_passages` plus assertions in `test_run_eval_meets_keyword_floor`.
+Correction to the round-1 disposition 9: excerpt trimming now does change evidence ids and spans, by design.
+Rounds used: 2 of 2 for Sprints 2-3. `make test`: 125 passed, 1 skipped (live Hermes attestation, no provider key). `ruff check`: clean. The hermes-agent image builds and the changed runner modules import inside it.

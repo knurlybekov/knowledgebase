@@ -17,7 +17,7 @@ def on_publish(version, link) -> None:
 
 @shared_task(base=OrgAwareTask, name="decisions.tasks.extract_for_version", bind=True)
 def extract_for_version(self, org_id, version_id, user_id) -> int:
-    from knowledge.api import DocumentVersion
+    from knowledge.api import visible_versions
 
     from .extraction import extract_candidates_for_version
 
@@ -30,8 +30,11 @@ def extract_for_version(self, org_id, version_id, user_id) -> int:
             .select_related("user")
             .first()
         )
-        version = DocumentVersion.objects.filter(id=version_id).first()
-    if membership is None or version is None:
+        if membership is None:
+            return 0
+        principal = Principal(user=membership.user, organization=organization, role=membership.role)
+        # Only a revision the owner can still see goes to the model.
+        version = visible_versions(principal).filter(id=version_id).first()
+    if version is None:
         return 0
-    principal = Principal(user=membership.user, organization=organization, role=membership.role)
     return len(extract_candidates_for_version(principal, version))

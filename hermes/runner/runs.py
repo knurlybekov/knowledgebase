@@ -164,9 +164,13 @@ def render_config(mcp_url: str, model: str, max_turns: int, max_tool_calls: int)
 
 
 class Run:
+    """One Hermes process. `_life` serializes start, cancellation, terminal
+    persistence and deletion so none of them can interleave."""
+
     def __init__(self, record: RunRecord):
         self.record = record
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()  # event file appends
+        self._life = threading.RLock()  # lifecycle transitions
         self._seq = 0
         self._proc: subprocess.Popen | None = None
         self._cancel_requested = False
@@ -174,6 +178,7 @@ class Run:
         if record.state not in ("created", "running"):
             self.pump_done.set()
         self._stderr_tail: list[str] = []
+        self.deleted = False
 
     # --- events ---------------------------------------------------------------
     def _append(self, event: dict) -> None:
@@ -210,60 +215,90 @@ class Run:
         mcp_token: str,
         model: str | None = None,
     ) -> None:
-        run_dir = Path(self.record.dir)
-        run_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-        os.chmod(run_dir, 0o700)
-        (run_dir / "config.yaml").write_text(
-            render_config(KNOWLEDGE_MCP_URL, model or HERMES_MODEL, max_turns, max_tool_calls)
-        )
-        (run_dir / "AGENTS.md").write_text(instructions)
-        env = {
-            "HOME": str(run_dir),
-            "HERMES_HOME": str(run_dir),
-            "KNOWLEDGE_MCP_TOKEN": mcp_token,
-            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-            "PYTHONUNBUFFERED": "1",
-            "HERMES_RUNTIME_DIR": os.environ.get("HERMES_RUNTIME_DIR", ""),
-            "HERMES_PYTHON": os.environ.get("HERMES_PYTHON", ""),
-            "XDG_RUNTIME_DIR": os.environ.get("XDG_RUNTIME_DIR", "/tmp/hermes-runtime"),
-            "LANG": "C.UTF-8",
-        }
-        if PROVIDER_KEY_ENV in os.environ:
-            env[PROVIDER_KEY_ENV] = os.environ[PROVIDER_KEY_ENV]
-        cmd = [
-            HERMES_BIN,
-            "chat",
-            "-q",
-            question,
-            "--toolsets",
-            TOOLSET,
-            "--max-turns",
-            str(max_turns),
-            "--format",
-            "stream-json",
-        ]
-        self._proc = subprocess.Popen(
-            cmd,
-            cwd=str(run_dir),
-            env=env,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        self.record.state = "running"
-        self.record.pgid = os.getpgid(self._proc.pid)
-        self.record.start_time = psutil.Process(self._proc.pid).create_time()
-        self.record.boot_id = boot_id()
-        self.record.timeout_s = timeout_s
-        self.record.save()
-        self._append({"type": "runner", "subtype": "started", "pid": self._proc.pid})
+        with self._life:
+            if self.record.state != "created":
+                return  # cancelled or already started: never launch
+            run_dir = Path(self.record.dir)
+            run_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            os.chmod(run_dir, 0o700)
+            (run_dir / "config.yaml").write_text(
+                render_config(KNOWLEDGE_MCP_URL, model or HERMES_MODEL, max_turns, max_tool_calls)
+            )
+            (run_dir / "AGENTS.md").write_text(instructions)
+            env = {
+                "HOME": str(run_dir),
+                "HERMES_HOME": str(run_dir),
+                "KNOWLEDGE_MCP_TOKEN": mcp_token,
+                "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+                "PYTHONUNBUFFERED": "1",
+                "HERMES_RUNTIME_DIR": os.environ.get("HERMES_RUNTIME_DIR", ""),
+                "HERMES_PYTHON": os.environ.get("HERMES_PYTHON", ""),
+                "XDG_RUNTIME_DIR": os.environ.get("XDG_RUNTIME_DIR", "/tmp/hermes-runtime"),
+                "LANG": "C.UTF-8",
+            }
+            if PROVIDER_KEY_ENV in os.environ:
+                env[PROVIDER_KEY_ENV] = os.environ[PROVIDER_KEY_ENV]
+            cmd = [
+                HERMES_BIN,
+                "chat",
+                "-q",
+                question,
+                "--toolsets",
+                TOOLSET,
+                "--max-turns",
+                str(max_turns),
+                "--format",
+                "stream-json",
+            ]
+            try:
+                self._proc = subprocess.Popen(
+                    cmd,
+                    cwd=str(run_dir),
+                    env=env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    start_new_session=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+            except OSError as exc:
+                self._terminalize(
+                    "failed",
+                    {
+                        "outcome": "failed",
+                        "final_text": "",
+                        "usage": {},
+                        "error": f"launch: {exc}"[:300],
+                    },
+                    1,
+                )
+                shutil.rmtree(run_dir, ignore_errors=True)
+                raise
+            self.record.state = "running"
+            self.record.pgid = os.getpgid(self._proc.pid)
+            self.record.start_time = psutil.Process(self._proc.pid).create_time()
+            self.record.boot_id = boot_id()
+            self.record.timeout_s = timeout_s
+            self.record.save()
+            self._append({"type": "runner", "subtype": "started", "pid": self._proc.pid})
         threading.Thread(target=self._drain_stderr, daemon=True).start()
         threading.Thread(target=self._pump, daemon=True).start()
         threading.Thread(target=self._watchdog, args=(timeout_s,), daemon=True).start()
+
+    def _terminalize(self, outcome: str, terminal: dict, exit_code: int | None) -> None:
+        """Persist the terminal record once, under the lifecycle lock; a deleted
+        run is never recreated."""
+        with self._life:
+            if self.deleted:
+                return
+            self.record.state = outcome
+            self.record.exit_code = exit_code
+            self.record.terminal = terminal
+            self.record.save()
+            self._append({"type": "terminal", "outcome": outcome, "exit_code": exit_code})
+            self.pump_done.set()
 
     def _drain_stderr(self) -> None:
         """Drain stderr concurrently so a chatty process never blocks on a full pipe;
@@ -316,85 +351,91 @@ class Run:
                 self._append({"type": "system", "model": event.get("model")})
         code = self._proc.wait()
         stderr_tail = "".join(self._stderr_tail)[-2000:]
-        if self.record.state == "running":
-            if self._cancel_requested:
-                outcome = "cancelled"
-            elif code == 0:
-                outcome = "completed"
+        with self._life:
+            if self.record.state == "running":
+                outcome = (
+                    "cancelled"
+                    if self._cancel_requested
+                    else ("completed" if code == 0 else "failed")
+                )
             else:
-                outcome = "failed"
-            self.record.state = outcome
-        outcome = self.record.state
-        self.record.exit_code = code
-        self.record.terminal = {
-            "outcome": outcome,
-            "final_text": final_text,
-            "usage": tokens,
-            "error": error or (stderr_tail.strip()[-500:] if code not in (0,) else None),
-        }
-        self.record.save()
-        self._append({"type": "terminal", "outcome": outcome, "exit_code": code})
+                outcome = self.record.state  # cancelled / timed_out already decided
+            terminal = {
+                "outcome": outcome,
+                "final_text": final_text if outcome == "completed" else "",
+                "usage": tokens,
+                "error": error or (stderr_tail.strip()[-500:] if code != 0 else None),
+            }
+            self._terminalize(outcome, terminal, code)
         stop_gateway_for_home(self.record.dir)  # the detached per-run gateway and its session store
         shutil.rmtree(self.record.dir, ignore_errors=True)  # session db, config, AGENTS.md
-        self.pump_done.set()
 
     def _watchdog(self, timeout_s: int) -> None:
         deadline = time.time() + timeout_s
         while self._proc is not None and self._proc.poll() is None:
             if time.time() > deadline:
-                self.record.state = "timed_out"
-                self.record.save()
-                self._append({"type": "runner", "subtype": "timeout"})
+                with self._life:
+                    if self.record.state == "running":
+                        self.record.state = "timed_out"
+                        self.record.save()
+                        self._append({"type": "runner", "subtype": "timeout"})
                 self._signal_group()
                 return
             time.sleep(0.5)
 
     def cancel(self) -> bool:
-        if self._proc is None:
-            # Created but not started: terminalize so /start cannot launch it.
+        with self._life:
             if self.record.state == "created":
-                self.record.state = "cancelled"
-                self.record.terminal = {
-                    "outcome": "cancelled",
-                    "final_text": "",
-                    "usage": {},
-                    "error": None,
-                }
-                self.record.save()
-                self._append({"type": "terminal", "outcome": "cancelled", "exit_code": 130})
-                self.pump_done.set()
+                # Not started: terminalize so start() never launches it.
+                self._terminalize(
+                    "cancelled",
+                    {"outcome": "cancelled", "final_text": "", "usage": {}, "error": None},
+                    130,
+                )
                 return True
-            return False
-        if self._proc.poll() is not None:
-            return False
-        self._cancel_requested = True
-        self.record.state = "cancelled"
-        self.record.save()
-        self._append({"type": "runner", "subtype": "cancel"})
+            if self.record.state != "running":
+                return False
+            self._cancel_requested = True
+            self.record.state = "cancelled"
+            self.record.save()
+            self._append({"type": "runner", "subtype": "cancel"})
         self._signal_group()
         return True
 
     def _signal_group(self) -> None:
+        """SIGINT the group, then SIGKILL whatever member survives the grace
+        period, including descendants after the leader exited."""
         if self.record.pgid is None:
             return
         try:
             os.killpg(self.record.pgid, signal.SIGINT)
         except ProcessLookupError:
-            return
+            pass
         deadline = time.time() + GRACE_S
         while time.time() < deadline:
-            if (
-                self._proc is not None
-                and self._proc.poll() is not None
-                and not _group_members(self.record.pgid)
-            ):
+            leader_gone = self._proc is None or self._proc.poll() is not None
+            if leader_gone and not _group_members(self.record.pgid):
                 return
             time.sleep(0.2)
-        # Leader exit is not enough: escalate while any descendant of the group survives.
         try:
             os.killpg(self.record.pgid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+
+    def delete(self) -> bool:
+        """Acknowledge: erase record and files. Refused while active or still persisting."""
+        with self._life:
+            if self.active or (self.record.state == "running"):
+                return False
+            if self.record.state == "created":
+                self._terminalize(
+                    "cancelled",
+                    {"outcome": "cancelled", "final_text": "", "usage": {}, "error": None},
+                    130,
+                )
+            self.deleted = True
+            self.record.delete()
+            return True
 
     @property
     def active(self) -> bool:
