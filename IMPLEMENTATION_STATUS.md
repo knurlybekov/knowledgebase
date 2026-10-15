@@ -4,9 +4,9 @@ Repository audit result: the "existing application" was an empty `django-admin s
 
 ## Test results
 
-`make test` on the compose Postgres (kb_migrator role, real RLS): **101 passed, 1 skipped** (the skipped test is the live Hermes attestation, which needs a provider key). Lint (`ruff`) clean. Live markers: `pytest -m hermes` (needs `kb-hermes-agent:dev` and `ANTHROPIC_API_KEY`), `pytest -m live` (provider calls).
+`make test` on the compose Postgres (kb_migrator role, real RLS): **111 passed, 1 skipped** (the skipped test is the live Hermes attestation, which needs a provider key). Lint (`ruff`) clean. Live markers: `pytest -m hermes` (needs `kb-hermes-agent:dev` and `ANTHROPIC_API_KEY`), `pytest -m live` (provider calls).
 
-Evaluation (`make eval`, mock embedder, stub composer, synthetic corpus): `eval/results/2026-10-15.md`. Recall@5 = 1.00 and MRR ≥ 0.5 on all six answerable golden queries through the keyword path; the unanswerable query returns `insufficient`; every stub claim passes the word-overlap support proxy. Vector-leg quality and LLM-judged grounding are not measured without provider keys.
+Evaluation (`make eval`, mock embedder, stub composer, synthetic corpus): `eval/results/2026-10-15.md`. Quick queries: recall@5 = 1.00 and MRR ≥ 0.5 on the three answerable ones through the keyword path; the unanswerable query returns `insufficient`; stub claims pass the support proxy (normalized substring or ≥80% word overlap with matching negation and numbers). Deep queries run through the real investigation lifecycle with the in-process FakeRunner driving the MCP tools: all three complete with recall@5 = 1.00 over the relevant documents and every statement cites evidence that was returned to the investigation (the statements themselves are the scripted fake's excerpt sentences, not model output). Vector-leg quality, LLM-judged grounding and live Hermes behavior are not measured without provider keys.
 
 ## Acceptance criteria
 
@@ -31,7 +31,8 @@ Evaluation (`make eval`, mock embedder, stub composer, synthetic corpus): `eval/
 ## Not done, blocked, or assumed
 
 - **No live provider or tenant was available.** Everything that needs Google, Microsoft, an LLM key or a Hermes model run is mock-tested and marked above. The attestation gate keeps Deep Investigation closed until a key is configured and the self-check passes.
-- The Hermes `tool_use` names for MCP tools are expected to be `mcp_knowledge_<tool>` (documented naming); the attestation accepts `search_knowledge` as well until a live run confirms the exact prefix.
+- The Hermes `tool_use` names for MCP tools are expected to be `mcp_knowledge_<tool>` (documented naming); the attestation accepts `search_knowledge` as well until a live run confirms the exact prefix. The attestation checks the enforcement point behaviorally (an adversarial prompt must produce zero non-knowledge tool calls) because `hermes-agent --list-tools` prints the whole registry regardless of filters.
+- Decision extraction after publish exists as a task but is off by default (`DECISION_EXTRACTION_ENABLED`): it calls the answer model for every new revision.
 - `find_related_documents` similarity is meaningless with the mock embedder.
 - The OpenAI composer uses `chat.completions` with a JSON-schema response format against SDK 3.x; untested live.
 - Ranking: the plan's optional reranker protocol is not implemented; retrieval is RRF over the two legs.
@@ -43,4 +44,4 @@ Evaluation (`make eval`, mock embedder, stub composer, synthetic corpus): `eval/
 
 ## Codex inspections
 
-Sprint 1: 17 findings, all fixed (commit c9b55ce), logged in `PLAN-REVIEW-LOG.md`. Sprints 2–3: see the log for findings and dispositions.
+Sprint 1: 17 findings, all fixed (commit c9b55ce). Sprints 2–3: 23 findings, all fixed (commit 1a919b4), including two real races the regression tests exposed (purge erasing the runner record of a still-running investigation; a stale token acting under a newer attempt). Findings and dispositions are in `PLAN-REVIEW-LOG.md`. The reinspection result is appended there.
