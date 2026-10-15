@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load org_tags %}
+{% block title %}Search · {{ organization.name }}{% endblock %}
+{% block content %}
+<h1 class="mb-3 text-xl font-semibold">Search</h1>
+<form method="get" action="{% org_url 'web:search' %}" class="mb-6 space-y-3 rounded border bg-white p-4" role="search">
+  <label class="block text-sm font-medium" for="q">Question</label>
+  <input id="q" class="w-full rounded border px-3 py-2" type="text" name="q" value="{{ question }}" placeholder="What is our vacation policy?" required>
+  <fieldset class="flex flex-wrap items-center gap-4 text-sm">
+    <legend class="sr-only">Mode</legend>
+    <label class="flex items-center gap-1"><input type="radio" name="mode" value="quick" {% if mode == 'quick' %}checked{% endif %}> Quick Search</label>
+    <label class="flex items-center gap-1 {% if not hermes_enabled %}text-slate-400{% endif %}"><input type="radio" name="mode" value="deep" {% if mode == 'deep' %}checked{% endif %} {% if not hermes_enabled %}disabled{% endif %}> Deep Investigation{% if not hermes_enabled %} (off){% endif %}</label>
+    <span class="text-slate-500">Sources:</span>
+    <label class="flex items-center gap-1"><input type="checkbox" name="source" value="google_drive" {% if 'google_drive' in source_types %}checked{% endif %}> Google Drive</label>
+    <label class="flex items-center gap-1"><input type="checkbox" name="source" value="sharepoint" {% if 'sharepoint' in source_types %}checked{% endif %}> SharePoint</label>
+    <button class="rounded bg-slate-900 px-3 py-1.5 text-white" type="submit">Search</button>
+  </fieldset>
+  {% if suggested == 'deep' and mode == 'quick' and hermes_enabled %}<p class="text-sm text-slate-600">This looks like a why or history question. Deep Investigation can trace it across documents.</p>{% endif %}
+  {% if deep_disabled %}<p class="text-sm text-amber-700" role="status">Deep Investigation is disabled on this deployment. Quick Search ran instead.</p>{% endif %}
+</form>
+
+{% if answer %}
+<section aria-labelledby="answer-heading" class="mb-6 rounded border bg-white p-4">
+  <h2 id="answer-heading" class="mb-2 font-semibold">Answer</h2>
+  {% if answer.withheld %}
+    <p class="text-slate-700">{{ answer.summary }}</p>
+  {% elif answer.evidence_state == 'insufficient' %}
+    <p class="text-slate-700">{{ answer.summary }}</p>
+  {% else %}
+    <ol class="list-decimal space-y-2 pl-5">
+      {% for claim in answer.claims %}
+        <li>{{ claim.text }}
+          <span class="text-sm text-slate-500">{% for c in claim.citations %}<a class="underline" href="{{ c.source_url }}" rel="noopener" target="_blank">[{{ c.title|default:"source" }}{% if c.locator.page %}, p. {{ c.locator.page }}{% elif c.locator.slide %}, slide {{ c.locator.slide }}{% elif c.locator.sheet %}, sheet {{ c.locator.sheet }}{% endif %}]</a> {% endfor %}</span>
+        </li>
+      {% endfor %}
+    </ol>
+    {% if answer.conflicts %}<h3 class="mt-3 font-medium text-amber-800">Conflicting evidence</h3><ul class="list-disc pl-5 text-sm">{% for c in answer.conflicts %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+    {% if answer.unsupported %}<h3 class="mt-3 font-medium text-red-800">Statements without supporting evidence (not findings)</h3><ul class="list-disc pl-5 text-sm">{% for u in answer.unsupported %}<li>{{ u }}</li>{% endfor %}</ul>{% endif %}
+  {% endif %}
+  <p class="mt-3 text-xs text-slate-500">Evidence state: {{ answer.evidence_state }}{% if answer.model_id %} · model {{ answer.model_id }}{% endif %} · {{ answer.retrieval_meta.retrieved|default:0 }} passages retrieved</p>
+</section>
+{% if answer.citations and not answer.withheld %}
+<section aria-labelledby="sources-heading">
+  <h2 id="sources-heading" class="mb-2 font-semibold">Retrieved passages</h2>
+  <ul class="space-y-2">
+    {% for c in answer.citations %}
+      <li class="rounded border bg-white p-3 text-sm">
+        <div class="flex justify-between"><a class="font-medium underline" href="{{ c.source_url }}" rel="noopener" target="_blank">{{ c.title|default:c.document_id }}</a><span class="text-slate-500">{{ c.source_type }} · {{ c.version_label }}</span></div>
+        <p class="mt-1 text-slate-700">{{ c.excerpt }}</p>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

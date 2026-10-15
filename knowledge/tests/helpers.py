@@ -174,3 +174,21 @@ def visible_labels(principal) -> list[str]:
 
     with with_org(principal.organization_id):
         return sorted(visible_versions(principal).values_list("version_label", flat=True))
+
+
+def ingest_markdown(org, user, docs: dict[str, bytes], label: str = "v1"):
+    """Link an account for `user`, publish each {source_id: markdown} document and
+    return (link, scope). The caller creates the membership."""
+    from connectors.tests.factories import make_link, make_scope
+    from knowledge.api import apply_change
+
+    link = make_link(org, user)
+    scope = make_scope(link)
+    for i, (sid, body) in enumerate(docs.items(), start=1):
+        apply_change(
+            link,
+            scope,
+            make_event(i, make_source(sid, label, title=sid)),
+            StaticFetcher({label: body}),
+        )
+    return link, scope

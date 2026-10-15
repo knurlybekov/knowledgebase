@@ -63,6 +63,13 @@ def set_link_status(link: ConnectorLink, status: str, error_code: str = "") -> N
     link.status = status
 
 
+def org_urlpatterns() -> list:
+    """Routes mounted under the organization prefix (lazy: views import this module)."""
+    from .org_urls import urlpatterns
+
+    return urlpatterns
+
+
 def revoke_user_links(organization, user) -> int:
     """Offboarding hook: every link this member owns is revoked and its grants
     are removed. Runs inside the organization scope opened by remove_member."""
@@ -98,6 +105,7 @@ __all__ = [
     "decrypt_token",
     "encrypt_token",
     "ensure_scope",
+    "org_urlpatterns",
     "revoke_link",
     "revoke_user_links",
     "set_link_status",

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Knowledge administration · {{ organization.name }}{% endblock %}
+{% block content %}
+<h1 class="mb-4 text-xl font-semibold">Knowledge administration</h1>
+<dl class="mb-6 grid gap-3 sm:grid-cols-3 text-sm">
+  <div class="rounded border bg-white p-3"><dt class="text-slate-500">Active documents</dt><dd class="text-lg">{{ stats.documents_active }}</dd><dd class="text-slate-500">{{ stats.documents_tombstone }} tombstones · {{ stats.documents_quarantined }} quarantined</dd></div>
+  <div class="rounded border bg-white p-3"><dt class="text-slate-500">Access grants</dt><dd class="text-lg">{{ stats.grants_valid }} fresh</dd><dd class="text-slate-500">{{ stats.grants_stale }} stale (denied) · oldest {{ stats.oldest_grant_age_hours|default:"–" }} h of {{ stats.freshness_bound_hours }} h bound</dd></div>
+  <div class="rounded border bg-white p-3"><dt class="text-slate-500">Pending approvals</dt><dd class="text-lg">{{ pending_approvals }}</dd><dd class="text-slate-500">candidate decision records</dd></div>
+</dl>
+
+<h2 class="mb-2 font-semibold">Connector links</h2>
+<table class="mb-6 w-full text-sm"><thead><tr class="text-left"><th>User</th><th>Provider</th><th>Status</th><th>Error</th></tr></thead><tbody>
+{% for l in links %}<tr class="border-t"><td class="py-1">{{ l.user.email }}</td><td>{{ l.get_provider_display }}</td><td>{{ l.status }}</td><td>{{ l.last_error_code }}</td></tr>{% empty %}<tr><td colspan="4">No links.</td></tr>{% endfor %}
+</tbody></table>
+
+<h2 class="mb-2 font-semibold">Sync scopes</h2>
+<table class="mb-6 w-full text-sm"><thead><tr class="text-left"><th>User</th><th>Scope</th><th>Bootstrapped</th><th>Last ok</th><th>Last revalidation</th><th>Generation</th></tr></thead><tbody>
+{% for s in scopes %}<tr class="border-t {% if s.reconcile_overdue %}bg-amber-50{% endif %}"><td class="py-1">{{ s.link.user.email }}</td><td>{{ s.display_name|default:s.kind }}</td><td>{{ s.bootstrapped|yesno:"yes,no" }}</td><td>{% if s.last_ok_at %}{{ s.last_ok_at|timesince }} ago{% else %}never{% endif %}</td><td>{% if s.last_reconcile_at %}{{ s.last_reconcile_at|timesince }} ago{% else %}never{% endif %}{% if s.reconcile_overdue %} <span class="text-amber-800">(overdue)</span>{% endif %}</td><td>{{ s.current_reconcile_generation }}</td></tr>{% empty %}<tr><td colspan="6">No scopes.</td></tr>{% endfor %}
+</tbody></table>
+
+<h2 class="mb-2 font-semibold">Change inbox</h2>
+<p class="mb-4 text-sm">pending {{ inbox_counts.pending|default:0 }} · done {{ inbox_counts.done|default:0 }} · failed {{ inbox_counts.failed|default:0 }} · obsolete {{ inbox_counts.obsolete|default:0 }}</p>
+{% if failed_rows %}<table class="mb-6 w-full text-sm"><thead><tr class="text-left"><th>Seq</th><th>User</th><th>Item</th><th>Kind</th><th>Error</th><th>Attempts</th></tr></thead><tbody>
+{% for r in failed_rows %}<tr class="border-t"><td class="py-1">{{ r.seq }}</td><td>{{ r.link.user.email }}</td><td class="truncate max-w-xs">{{ r.source_id }}</td><td>{{ r.kind }}</td><td>{{ r.error_code }}</td><td>{{ r.attempts }}</td></tr>{% endfor %}
+</tbody></table>{% endif %}
+
+<h2 class="mb-2 font-semibold">Recent sync runs</h2>
+<table class="w-full text-sm"><thead><tr class="text-left"><th>Started</th><th>User</th><th>Kind</th><th>Status</th><th>Pages</th><th>Changes</th><th>Error</th></tr></thead><tbody>
+{% for r in recent_runs %}<tr class="border-t"><td class="py-1">{{ r.started_at|date:"Y-m-d H:i" }}</td><td>{{ r.link.user.email }}</td><td>{{ r.kind }}</td><td>{{ r.status }}</td><td>{{ r.pages_done }}</td><td>{{ r.changes_seen }}</td><td>{{ r.error_code }}</td></tr>{% empty %}<tr><td colspan="7">No runs yet.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

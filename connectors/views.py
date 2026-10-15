@@ -70,8 +70,11 @@ def connectors_page(request):
             .exclude(status=ConnectorLink.STATUS_REVOKED)
             .order_by("provider")
         )
-        scopes = {l.id: list(SyncScope.objects.filter(link=l)) for l in links}
-        runs = {l.id: SyncRun.objects.filter(link=l).order_by("-started_at").first() for l in links}
+        scopes = {link.id: list(SyncScope.objects.filter(link=link)) for link in links}
+        runs = {
+            link.id: SyncRun.objects.filter(link=link).order_by("-started_at").first()
+            for link in links
+        }
     return render(
         request,
         "connectors/index.html",
