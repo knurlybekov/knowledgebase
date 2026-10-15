@@ -146,6 +146,8 @@ def render_config(mcp_url: str, model: str, max_turns: int, max_tool_calls: int)
         "approvals:\n"
         "  mode: manual\n"
         "  single_query_mode: deny\n"
+        "gateway:\n"
+        "  unmanaged_idle_exit_seconds: 60\n"
         "platform_toolsets:\n"
         f"  cli: [{TOOLSET}]\n"
         "mcp_servers:\n"
@@ -223,6 +225,7 @@ class Run:
             "PYTHONUNBUFFERED": "1",
             "HERMES_RUNTIME_DIR": os.environ.get("HERMES_RUNTIME_DIR", ""),
             "HERMES_PYTHON": os.environ.get("HERMES_PYTHON", ""),
+            "XDG_RUNTIME_DIR": os.environ.get("XDG_RUNTIME_DIR", "/tmp/hermes-runtime"),
             "LANG": "C.UTF-8",
         }
         if PROVIDER_KEY_ENV in os.environ:
@@ -331,6 +334,7 @@ class Run:
         }
         self.record.save()
         self._append({"type": "terminal", "outcome": outcome, "exit_code": code})
+        stop_gateway_for_home(self.record.dir)  # the detached per-run gateway and its session store
         shutil.rmtree(self.record.dir, ignore_errors=True)  # session db, config, AGENTS.md
         self.pump_done.set()
 
@@ -395,6 +399,87 @@ class Run:
     @property
     def active(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
+
+
+def _is_hermes_gateway(proc: psutil.Process) -> bool:
+    cmdline = " ".join(proc.cmdline() or [])
+    return "hermes_cli.main" in cmdline and "gateway" in cmdline and " run" in cmdline
+
+
+def _gateway_pids_for_home(home: str) -> list[int]:
+    """Gateway processes (detached, own process group) that serve one HERMES_HOME:
+    the pid from `<home>/gateway.pid` when it still is a Hermes gateway, plus any
+    gateway whose environment or cwd names this home."""
+    pids: set[int] = set()
+    pid_file = Path(home) / "gateway.pid"
+    try:
+        data = json.loads(pid_file.read_text())
+        pid = int(data.get("pid", 0))
+        if pid > 0 and str(data.get("hermes_home", home)) == home:
+            proc = psutil.Process(pid)
+            if _is_hermes_gateway(proc):
+                pids.add(pid)
+    except (OSError, ValueError, json.JSONDecodeError, psutil.Error):
+        pass
+    for proc in psutil.process_iter(["pid"]):
+        try:
+            if not _is_hermes_gateway(proc):
+                continue
+            if proc.environ().get("HERMES_HOME", "") == home or proc.cwd() == home:
+                pids.add(proc.pid)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, ProcessLookupError, OSError):
+            continue
+    return sorted(pids)
+
+
+def stop_gateway_for_home(home: str, env: dict | None = None) -> int:
+    """`hermes chat -q` auto-starts a detached gateway per HERMES_HOME (verified
+    2026-10-15 on v0.22.1). Stop it through the CLI, then kill any survivor that
+    still serves this home, so no session store or socket outlives the run."""
+    base_env = {
+        "HOME": home,
+        "HERMES_HOME": home,
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "LANG": "C.UTF-8",
+    }
+    for key in ("HERMES_RUNTIME_DIR", "HERMES_PYTHON", "XDG_RUNTIME_DIR"):
+        if os.environ.get(key):
+            base_env[key] = os.environ[key]
+    if env:
+        base_env.update(
+            {
+                k: v
+                for k, v in env.items()
+                if k in ("HERMES_RUNTIME_DIR", "HERMES_PYTHON", "XDG_RUNTIME_DIR")
+            }
+        )
+    try:
+        subprocess.run(
+            [HERMES_BIN, "gateway", "stop"],
+            env=base_env,
+            cwd=home if os.path.isdir(home) else None,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (subprocess.SubprocessError, OSError):
+        pass
+    killed = 0
+    for pid in _gateway_pids_for_home(home):
+        try:
+            os.kill(pid, signal.SIGTERM)
+            killed += 1
+        except ProcessLookupError:
+            continue
+    deadline = time.time() + 5
+    while time.time() < deadline and _gateway_pids_for_home(home):
+        time.sleep(0.2)
+    for pid in _gateway_pids_for_home(home):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    return killed
 
 
 def _group_members(pgid: int | None) -> list[int]:
@@ -464,7 +549,9 @@ def reconcile_orphans() -> dict:
             record.delete()
             expired += 1
     for path in RUNS_ROOT.glob("*"):
-        if path.is_dir() and RunRecord.load(path.name.replace("_", ":", 1)) is None:
-            shutil.rmtree(path, ignore_errors=True)
-            erased += 1
+        if path.is_dir():
+            killed += stop_gateway_for_home(str(path))
+            if RunRecord.load(path.name.replace("_", ":", 1)) is None:
+                shutil.rmtree(path, ignore_errors=True)
+                erased += 1
     return {"killed": killed, "erased": erased, "expired": expired}

@@ -6,9 +6,11 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -93,6 +95,59 @@ def main() -> int:
             f"event types={kinds} stderr={sj.stderr.strip()[-300:]}",
         )
     )
+    # No-key handshake: with the self-check MCP server reachable, Hermes registers
+    # the toolset, connects with the interpolated bearer, and fails only at the
+    # model call (fake key). This verifies ${KNOWLEDGE_MCP_TOKEN} reaches the MCP server.
+    import urllib.request
+
+    sc_env = {**os.environ, "SELFCHECK_TOKEN": "spike-token", "SELFCHECK_PORT": "8799"}
+    sc = subprocess.Popen(
+        [sys.executable, str(Path(__file__).with_name("selfcheck_mcp.py"))], env=sc_env
+    )
+    home2 = Path(tempfile.mkdtemp(prefix="spike2-"))
+    try:
+        time.sleep(1)
+        (home2 / "config.yaml").write_text(
+            runs.render_config("http://127.0.0.1:8799/mcp", runs.HERMES_MODEL, 1, 1)
+        )
+        env2 = {
+            **env,
+            "HOME": str(home2),
+            "HERMES_HOME": str(home2),
+            runs.PROVIDER_KEY_ENV: os.environ.get(runs.PROVIDER_KEY_ENV, "sk-fake-for-handshake"),
+        }
+        hs = sh(
+            [
+                HERMES,
+                "chat",
+                "-q",
+                "say ok",
+                "--format",
+                "stream-json",
+                "--max-turns",
+                "1",
+                "--toolsets",
+                runs.TOOLSET,
+            ],
+            env=env2,
+            cwd=str(home2),
+            timeout=240,
+        )
+        seen = json.loads(
+            urllib.request.urlopen("http://127.0.0.1:8799/selfcheck/seen", timeout=2).read()
+        )
+        gw = runs._gateway_pids_for_home(str(home2))
+        stopped = runs.stop_gateway_for_home(str(home2))
+        rows.append(
+            (
+                "MCP handshake with ${KNOWLEDGE_MCP_TOKEN} (self-check server; model call expected to fail without a real key)",
+                hs.returncode,
+                f"auth_ok={seen.get('auth_ok')} gateway_procs_after_run={len(gw)} stopped={stopped} stderr={hs.stderr.strip()[-200:]}",
+            )
+        )
+    finally:
+        sc.terminate()
+        shutil.rmtree(home2, ignore_errors=True)
     if os.environ.get(runs.PROVIDER_KEY_ENV):
         import attestation
 

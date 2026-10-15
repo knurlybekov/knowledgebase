@@ -31,6 +31,7 @@ web/worker (Django)  --POST /runs (runner secret)-->  hermes-agent container
 - Hermes receives no database credentials. Its only secrets are the LLM provider key and, per run, one capability token in the environment of that process.
 - Identity propagation: Hermes has no per-request identity mechanism (MCP headers are static per `config.yaml`). Each investigation therefore gets its own Hermes process with its own generated `config.yaml` whose MCP header reads the token from `${KNOWLEDGE_MCP_TOKEN}`. The MCP server resolves the verified principal from the token hash (`investigations.CapabilityToken`), then enters the organization scope. Model arguments never carry identity.
 - Memory: `memory.memory_enabled: false`, `memory.user_profile_enabled: false`; the per-run `HERMES_HOME` (including `state.db`) is erased when the process exits; the runner reconciles orphans at startup with a pgid + process start time + boot id identity check.
+- **Per-run gateway (verified in the image, 2026-10-15):** in v0.22.1 `hermes chat -q` runs "through the canonical gateway, never AIAgent" (`hermes_cli/gateway_chat.py`). The CLI auto-starts a detached gateway process for the `HERMES_HOME` (own process group, `gateway run --quiet --idle-exit`, control socket `<home>/gateway.sock`, pid in `<home>/gateway.pid` as JSON with `pid`, `start_time`, `hermes_home`). It is not in the chat process group, so the runner stops it explicitly at run end and at startup reconciliation: `hermes gateway stop` with the run's `HERMES_HOME` (prints `✓ Stopped gateway for this profile`), then SIGTERM/SIGKILL of any gateway whose pid file, environment or cwd names that home. The generated config also sets `gateway.unmanaged_idle_exit_seconds: 60` so a missed stop exits on its own.
 - Tool restriction: `platform_toolsets.cli: [mcp-knowledge]` plus `--toolsets mcp-knowledge` on the command line. The runner's configuration attestation (`hermes/runner/attestation.py`) runs the pinned invocation against a self-check MCP server before any run and refuses runs when a non-knowledge tool appears or the bearer did not arrive.
 
 ## Generated per-run `config.yaml`
@@ -42,12 +43,15 @@ model:
 agent:
   max_turns: 12
   max_tool_calls: 20
+  disabled_toolsets: [terminal, file, browser, web, search, x_search, vision, image_gen, video_gen, tts, skills, todo, memory, session_search, cronjob, code_execution, delegation, clarify, messaging, discord, discord_admin, debugging, kanban, safe]
 memory:
   memory_enabled: false
   user_profile_enabled: false
 approvals:
   mode: manual
   single_query_mode: deny
+gateway:
+  unmanaged_idle_exit_seconds: 60
 platform_toolsets:
   cli: [mcp-knowledge]
 mcp_servers:
@@ -76,7 +80,9 @@ Verified in the pinned source (`hermes_cli/_parser.py`, `hermes_cli/stream_json.
 - Exit codes: `0` completed, `1` failed (including "credentials or agent init failed"), `2` misuse (for example `--format stream-json` without `-q`), `130` interrupted.
 - `--ignore-user-config` is **not** used: it ignores `config.yaml`, which would drop the MCP server. `--safe-mode` is not used: it disables MCP servers. `--ignore-rules` is not used: it skips `AGENTS.md`.
 - MCP `headers` values support `${VAR}` interpolation (`tools/mcp_tool_config.py::_interpolate_env_vars`); unset variables keep the literal placeholder, so the runner always sets `KNOWLEDGE_MCP_TOKEN`.
-- `platform_toolsets.<platform>` is the toolset allow-list per platform (`hermes_cli/config.py`); the CLI platform key is `cli`.
+- `platform_toolsets.<platform>` is the toolset allow-list per platform (`hermes_cli/config.py`); the CLI platform key is `cli`. `agent.disabled_toolsets` is a global suppression list applied last (`hermes_cli/tools_config.py`).
+- **Unknown toolset fails closed:** when the MCP server is unreachable, the `mcp-knowledge` toolset never registers and the gateway refuses the session with `Error: invalid_params` (exit 1). With the self-check MCP server reachable and a fake provider key, the session is created, the MCP handshake carries the interpolated bearer (`auth_ok: true` on the self-check server) and the run fails only at the model call ("Anthropic rejected your API key"). Verified in the image on 2026-10-15.
+- **Attestation is behavioral.** `hermes-agent --list-tools` prints the whole registry regardless of `--enabled-toolsets` (verified), so it is not an enabled inventory. The attestation runs a benign prompt (knowledge tool must be called, bearer must arrive) and an adversarial prompt (terminal, read_file, web_search requested; zero non-knowledge `tool_use` events allowed).
 
 ## Spike results (run inside the built image, 2026-10-15, no provider key)
 

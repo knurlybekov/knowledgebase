@@ -161,4 +161,5 @@ def run() -> dict:
         return {"ok": False, "detail": "attestation timed out"}
     finally:
         selfcheck.terminate()
+        runs.stop_gateway_for_home(str(home))
         shutil.rmtree(home, ignore_errors=True)
