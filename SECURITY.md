@@ -32,7 +32,7 @@
 - Runs share one container, uid and filesystem inside `hermes-agent`; isolation between concurrent runs is by process group and directory permissions, not by container.
 - The provider key for the model is present in the `hermes-agent` container; organizational text goes to the configured inference provider. Configure the provider per the data-processing arrangement; Canadian residency is a deployment choice (provider, region), not solved in code.
 - No SSO yet; local passwords with Django validators. No MFA.
-- Hermes CLI behavior is verified by the spike for flags, config honoring, event protocol and exit codes; a full live run with tool calls and the attestation were not executed in this session (no provider key). The runner refuses runs until the attestation passes.
+- Hermes CLI behavior is verified by the spike for flags, config honoring, event protocol and exit codes. The attestation (benign and adversarial prompts against the self-check MCP server) passed live on 2026-10-15 with a provider key; an end-to-end live investigation through the production `knowledge-mcp` server is listed in `IMPLEMENTATION_STATUS.md`. The runner refuses runs until the attestation passes.
 - Live connector behavior (real Google and Graph tenants) is mock-tested only.
 - The rate limiter is a fixed window in Redis per user or IP; behind a proxy, `REMOTE_ADDR` is the proxy unless the proxy is trusted (not configured).
 - `find_related_documents` similarity is embedding-based and labeled as a suggestion; with `EMBEDDER=mock` it is meaningless.

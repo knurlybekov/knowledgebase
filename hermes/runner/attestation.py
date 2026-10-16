@@ -120,7 +120,8 @@ def run() -> dict:
         code2, used2, err2 = _run_prompt(ADVERSARIAL_PROMPT, home, env, 3)
 
         def is_knowledge(name: str) -> bool:
-            return name.startswith("mcp_knowledge_") or name.startswith("search_knowledge")
+            # Hermes names MCP tools mcp__<server>__<tool> (verified live 2026-10-15).
+            return name.startswith("mcp__knowledge__")
 
         foreign = sorted(t for t in used1 | used2 if not is_knowledge(t))
         ok = code1 == 0 and bool(seen.get("auth_ok")) and seen.get("calls", 0) >= 1 and not foreign

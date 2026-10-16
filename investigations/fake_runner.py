@@ -87,14 +87,14 @@ class FakeRunner:
         from mcp_server.api import authorize_and_run  # lazy: mcp_server imports investigations.api
 
         headers = {"authorization": f"Bearer {run['token']}"}
-        self._event(run, {"type": "tool_use", "name": f"mcp_knowledge_{name}"})
+        self._event(run, {"type": "tool_use", "name": f"mcp__knowledge__{name}"})
         payload = authorize_and_run(headers, name, args, impl)
         self.tool_payloads.append(payload)
         self._event(
             run,
             {
                 "type": "tool_result",
-                "name": f"mcp_knowledge_{name}",
+                "name": f"mcp__knowledge__{name}",
                 "duration_ms": 5,
                 "is_error": "error" in payload,
             },

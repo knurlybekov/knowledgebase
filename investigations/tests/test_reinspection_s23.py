@@ -246,7 +246,7 @@ def test_attestation_runs_both_prompts_and_fails_on_a_foreign_tool(tmp_path, mon
         assert env["KNOWLEDGE_MCP_TOKEN"] and env[runs.PROVIDER_KEY_ENV] == "test-key"
         if prompt == attestation.ADVERSARIAL_PROMPT:
             return 0, {"terminal"}, ""
-        return 0, {"mcp_knowledge_search_knowledge"}, ""
+        return 0, {"mcp__knowledge__search_knowledge"}, ""
 
     monkeypatch.setattr(attestation, "_run_prompt", fake_run_prompt)
     out = attestation.run()
@@ -254,6 +254,6 @@ def test_attestation_runs_both_prompts_and_fails_on_a_foreign_tool(tmp_path, mon
     assert out["ok"] is False and "foreign=['terminal']" in out["detail"]
 
     monkeypatch.setattr(
-        attestation, "_run_prompt", lambda p, h, e, m: (0, {"mcp_knowledge_search_knowledge"}, "")
+        attestation, "_run_prompt", lambda p, h, e, m: (0, {"mcp__knowledge__search_knowledge"}, "")
     )
     assert attestation.run()["ok"] is True

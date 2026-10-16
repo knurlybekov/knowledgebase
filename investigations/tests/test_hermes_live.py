@@ -46,6 +46,4 @@ def test_attestation_passes_with_live_model():
     )
     result = json.loads(proc.stdout.strip().splitlines()[-1])
     assert result["ok"], result
-    assert all(t.startswith(("mcp_knowledge_", "search_knowledge")) for t in result["tools"]), (
-        result
-    )
+    assert all(t.startswith("mcp__knowledge__") for t in result["tools"]), result

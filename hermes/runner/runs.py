@@ -148,6 +148,12 @@ def render_config(mcp_url: str, model: str, max_turns: int, max_tool_calls: int)
         "  single_query_mode: deny\n"
         "gateway:\n"
         "  unmanaged_idle_exit_seconds: 60\n"
+        # No Tool Search bridge: the MCP tools are presented directly, so the
+        # enabled tool set is exactly the knowledge tools (live run 2026-10-15 showed
+        # tool_search/tool_describe/tool_call otherwise).
+        "tools:\n"
+        "  tool_search:\n"
+        "    enabled: off\n"
         "platform_toolsets:\n"
         f"  cli: [{TOOLSET}]\n"
         "mcp_servers:\n"

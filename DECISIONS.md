@@ -9,6 +9,8 @@ Append-only. Supersede rather than delete. Format: `## NNN — Title (YYYY-MM-DD
 **Alternatives considered:** the Hermes API server (`/v1/runs`) with the token inside `instructions` (token in model context, shared session store); per-user Hermes profiles (one gateway per user, heavy).
 **Consequences:** cold start per investigation; a runner we maintain; strongest isolation available with the documented surface. Build-time facts in `HERMES_INTEGRATION.md`.
 
+**Amendment 2026-10-15 (live run):** Hermes names MCP tools `mcp__<server>__<tool>`, not `mcp_<server>_<tool>`; the attestation and the investigator prompt use `mcp__knowledge__*`. Hermes' Tool Search bridge (`tool_search`, `tool_describe`, `tool_call`) defers MCP tools behind a catalog by default; the generated config sets `tools.tool_search.enabled: off` so the enabled tool set is exactly the knowledge tools and the attestation can assert it. The live attestation passed with `anthropic/claude-sonnet-4-6`.
+
 ## 002 — Local login plus verified identity links (2026-10-14)
 **Status:** Accepted
 **Context:** Source permissions name corporate identities; no tenant app registration was available for SSO.
