@@ -27,3 +27,6 @@ web/static/css/dist/
 
 # scripts/dev-up.sh logs and pids
 .run/
+
+# Celery beat state
+celerybeat-schedule*
