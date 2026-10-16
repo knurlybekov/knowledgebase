@@ -10,6 +10,7 @@ for every file; `headRevisionId` and `md5Checksum` exist only for binary files.
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Protocol
@@ -225,6 +226,17 @@ class GoogleDriveClient:
         raise RevisionDrift(f"{sd.source_id} changed during download")
 
 
+def _error_reason(exc) -> str:
+    """The `reason` of the first error in a Google API error body, or ""."""
+    try:
+        body = json.loads(
+            exc.content.decode("utf-8") if isinstance(exc.content, bytes) else exc.content
+        )
+        return str(body["error"]["errors"][0]["reason"])
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+        return ""
+
+
 class GoogleApiClient:
     """googleapiclient-backed GoogleApi. Built from a link's refresh token."""
 
@@ -254,6 +266,9 @@ class GoogleApiClient:
             status = exc.resp.status
             if status in (401,):
                 raise AuthError("unauthorized", status=status) from exc
+            if status == 403 and _error_reason(exc) == "exportSizeLimitExceeded":
+                # Native file above Google's export limit: permanent for this revision.
+                raise ProviderError("too_large", status=status) from exc
             raise ProviderError("http_error", str(exc), status=status) from exc
 
     def start_page_token(self) -> str:

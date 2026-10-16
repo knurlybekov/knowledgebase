@@ -384,3 +384,24 @@ def test_unreadable_content_of_a_supported_type_is_quarantined():
         == UNSUPPORTED
     )
     assert count_visible(principal_for(org, user)) == 0
+
+
+def test_docx_that_python_docx_rejects_is_parsed_from_its_xml(monkeypatch):
+    """Live drive 2026-10-16: a real 32 MB plan raised KeyError inside python-docx
+    (missing internal part). The text is still readable from document.xml."""
+    import docx
+
+    from knowledge.api import parse
+    from knowledge.tests.helpers import docx_bytes
+
+    content = docx_bytes([("Heading 1", "Evacuation"), ("Normal", "Residents move to the arena.")])
+
+    def broken(*a, **k):
+        raise KeyError("There is no item named 'word/#Appendix' in the archive")
+
+    monkeypatch.setattr(docx, "Document", broken)
+    parsed = parse(
+        content, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    assert parsed.parser == "docx-xml"
+    assert "Residents move to the arena." in parsed.text and "Evacuation" in parsed.text

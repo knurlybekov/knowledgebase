@@ -3,6 +3,7 @@ a chunk traces back to a page, slide, sheet or heading."""
 
 from __future__ import annotations
 
+import html
 import io
 import re
 
@@ -100,7 +101,12 @@ def _parse_text(content: bytes) -> ParsedDocument:
 def _parse_docx(content: bytes) -> ParsedDocument:
     import docx
 
-    document = docx.Document(io.BytesIO(content))
+    try:
+        document = docx.Document(io.BytesIO(content))
+    except Exception as exc:
+        # Live drive 2026-10-16: a 32 MB plan with a broken internal relationship
+        # (KeyError on a missing part). Fall back to the raw document XML.
+        return _parse_docx_xml(content, reason=type(exc).__name__)
     sections: list[Section] = []
     heading_path: list[str] = []
     buffer: list[str] = []
@@ -134,6 +140,28 @@ def _parse_docx(content: bytes) -> ParsedDocument:
         if rows:
             sections.append(Section(tuple(heading_path), "\n".join(rows), {"table": index}))
     return ParsedDocument(sections, "docx")
+
+
+def _parse_docx_xml(content: bytes, *, reason: str) -> ParsedDocument:
+    """Paragraph text from word/document.xml without python-docx: one section,
+    no heading structure. Raises UnsupportedFormat when even that is unreadable."""
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            xml = archive.read("word/document.xml").decode("utf-8", "replace")
+    except (zipfile.BadZipFile, KeyError, OSError) as exc:
+        raise UnsupportedFormat(f"docx: {reason}") from exc
+    paragraphs = []
+    for para in re.findall(r"<w:p[ >].*?</w:p>", xml, flags=re.S):
+        text = "".join(re.findall(r"<w:t(?:\s[^>]*)?>([^<]*)</w:t>", para))
+        text = html.unescape(text).strip()
+        if text:
+            paragraphs.append(text)
+    body = _clean("\n".join(paragraphs))
+    if not body:
+        raise UnsupportedFormat(f"docx: {reason}")
+    return ParsedDocument([Section((), body, {"fallback": "document.xml"})], "docx-xml")
 
 
 def _parse_pptx(content: bytes) -> ParsedDocument:

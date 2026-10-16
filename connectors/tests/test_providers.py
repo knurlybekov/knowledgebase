@@ -78,3 +78,25 @@ def test_graph_fetch_rechecks_ctag():
     api.modify("i1", b"# Plan 2", ctag="c2")
     with pytest.raises(RevisionDrift):
         client.fetch(sd)
+
+
+def test_google_export_size_limit_is_too_large():
+    """Live drive 2026-10-16: a sheet above Google's export limit returned HTTP 403
+    exportSizeLimitExceeded and was retried as a transient http_error."""
+    import httplib2
+    import pytest
+    from googleapiclient.errors import HttpError
+
+    from connectors.http import ProviderError
+    from connectors.providers.google import GoogleApiClient
+
+    body = b'{"error": {"code": 403, "message": "This file is too large to be exported.", "errors": [{"reason": "exportSizeLimitExceeded"}]}}'
+
+    class Request:
+        def execute(self, num_retries=0):
+            raise HttpError(httplib2.Response({"status": 403}), body)
+
+    client = GoogleApiClient.__new__(GoogleApiClient)
+    with pytest.raises(ProviderError) as info:
+        client._run(Request())
+    assert info.value.code == "too_large"
