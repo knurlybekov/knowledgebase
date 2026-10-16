@@ -254,3 +254,15 @@ def test_no_new_reconcile_while_the_previous_listing_is_still_being_applied():
     with with_org(org.id):
         ChangeInbox.objects.filter(id=row.id).update(status=ChangeInbox.STATUS_DONE)
     assert _due_for_reconcile(scope) is True
+
+
+def test_missing_lease_row_is_recreated_instead_of_blocking_the_scope():
+    """Live ops 2026-10-16: deleting the lease rows made every sync return busy."""
+    from connectors.api import SyncLease
+    from connectors.sync import acquire_lease
+
+    org, _user, _link, scope, _api, _client = google_setup()
+    with with_org(org.id):
+        SyncLease.objects.filter(scope=scope).delete()
+    assert acquire_lease(scope) is not None
+    assert acquire_lease(scope) is None  # now held

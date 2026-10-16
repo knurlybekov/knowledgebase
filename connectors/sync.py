@@ -56,6 +56,15 @@ def acquire_lease(scope: SyncScope) -> str | None:
     token = secrets.token_hex(16)
     now = timezone.now()
     with with_org(scope.organization_id):
+        # The row is created with the scope; if it is missing (operator cleanup),
+        # recreate it expired instead of reporting the scope busy forever.
+        SyncLease.objects.get_or_create(
+            scope=scope,
+            defaults={
+                "organization_id": scope.organization_id,
+                "expires_at": now - timedelta(seconds=1),
+            },
+        )
         updated = SyncLease.objects.filter(scope=scope, expires_at__lt=now).update(
             lease_token=token,
             holder=socket.gethostname()[:128],
