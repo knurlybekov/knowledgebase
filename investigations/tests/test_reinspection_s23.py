@@ -274,3 +274,16 @@ def test_runner_server_module_has_a_main_guard():
         and "__main__" in ast.get_source_segment(source.read_text(), node.test)
     ]
     assert guards and "main()" in ast.get_source_segment(source.read_text(), guards[0])
+
+
+def test_statement_text_has_no_separators_left_by_removed_citations():
+    """Live run 2026-10-16: two citations after a sentence produced "Alpha's. ,." in the answer."""
+    a = "chunk:11111111-1111-1111-1111-111111111111@v1[0:10]"
+    b = "chunk:22222222-2222-2222-2222-222222222222@v1[0:10]"
+    text = f"## Answer\nx\n\n## Statements\n- Beta cost more than Alpha. [{a}], [{b}]\n- Beta was rejected. [{a}]"
+    parsed = validate_citations(parse_result(text), {a, b})
+    assert [st["text"] for st in parsed.statements] == [
+        "Beta cost more than Alpha.",
+        "Beta was rejected.",
+    ]
+    assert parsed.answer == "Beta cost more than Alpha. Beta was rejected."

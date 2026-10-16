@@ -18,6 +18,8 @@ make test                       # pytest on the compose Postgres
 make eval                       # eval/results/<date>.md
 ```
 
+One script starts the whole development stack with Deep Investigation on (postgres, redis, migrations, demo data, MCP server, hermes-agent container, Celery worker with the threads pool, web server on :8010): `scripts/dev-up.sh`; `scripts/dev-up.sh --stop` stops it. It needs `ANTHROPIC_API_KEY` in `.env` for the agent attestation.
+
 Runtime processes use `DATABASE_URL` with the `kb_app` role; migrations and tests use `MIGRATOR_DATABASE_URL` (the Makefile does this).
 
 ## Connectors

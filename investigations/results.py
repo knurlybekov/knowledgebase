@@ -56,6 +56,9 @@ def parse_result(text: str) -> ParsedResult:
     for bullet in _bullets(sections.get("statements", "")):
         ids = [m.group(0) for m in _EVIDENCE_ID.finditer(bullet)]
         clean = _EVIDENCE_ID.sub("", bullet).replace("[]", "").strip(" []")
+        # Removed citation markers leave separators behind ("text. , ."): collapse them.
+        clean = re.sub(r"\s*,(\s*,)+", ",", clean)
+        clean = re.sub(r"[\s,;]+$", "", clean).strip(" []")
         out.statements.append({"text": clean, "evidence_ids": ids})
     return out
 
