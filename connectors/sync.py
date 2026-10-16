@@ -157,6 +157,17 @@ def checkpoint(
 def _due_for_reconcile(scope: SyncScope) -> bool:
     if not scope.bootstrapped:
         return False
+    # A complete listing (bootstrap or reconcile) whose rows are still being
+    # applied must finish first: opening another generation would list the
+    # whole scope again on every poll (live drive, 2026-10-16: 3,171 rows twice).
+    with with_org(scope.organization_id):
+        incomplete = ChangeInbox.objects.filter(
+            scope=scope,
+            reconcile_generation__isnull=False,
+            status__in=[ChangeInbox.STATUS_PENDING, ChangeInbox.STATUS_FAILED],
+        ).exists()
+    if incomplete:
+        return False
     if scope.last_reconcile_at is None:
         return True
     return timezone.now() - scope.last_reconcile_at >= timedelta(

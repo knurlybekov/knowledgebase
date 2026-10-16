@@ -234,3 +234,23 @@ def test_oversized_download_is_terminal_and_quarantined(monkeypatch):
         assert (row.status, row.error_code) == ("done", "too_large")
         assert Document.objects.get(source_id="gdrive:big").status == "quarantined"
         assert SyncRun.objects.get().status == "completed"
+
+
+def test_no_new_reconcile_while_the_previous_listing_is_still_being_applied():
+    """Live drive 2026-10-16: with 2,700 bootstrap rows still pending, the next
+    poll opened generation 2 and listed all 3,171 items again."""
+    from connectors.sync import _due_for_reconcile
+
+    org, _user, _link, scope, api, client = google_setup()
+    api.add_file("a", "Policy.md", b"# Policy\nVacation is fifteen days.")
+    assert sync_scope(scope, client) == SyncRun.KIND_BOOTSTRAP
+    with with_org(org.id):
+        scope.refresh_from_db()
+        assert _due_for_reconcile(scope) is False  # generation 1 completed and swept
+        scope.last_reconcile_at = None
+        row = ChangeInbox.objects.get(scope=scope)
+        ChangeInbox.objects.filter(id=row.id).update(status=ChangeInbox.STATUS_PENDING)
+    assert _due_for_reconcile(scope) is False  # rows of generation 1 still pending
+    with with_org(org.id):
+        ChangeInbox.objects.filter(id=row.id).update(status=ChangeInbox.STATUS_DONE)
+    assert _due_for_reconcile(scope) is True
