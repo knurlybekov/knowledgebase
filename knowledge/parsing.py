@@ -19,6 +19,16 @@ MAX_TEXT_BYTES = 20 * 1024 * 1024
 _MD_HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 
 
+def is_supported(mime_type: str, filename: str = "") -> bool:
+    """True when `parse` has a parser for this type. Checked before a download so
+    audio, video, archives and binaries are quarantined without a transfer."""
+    mime = (mime_type or "").split(";")[0].strip().lower()
+    name = (filename or "").lower()
+    if mime in (DOCX, PPTX, XLSX, PDF) or mime in TEXT_TYPES or mime.startswith("text/"):
+        return True
+    return name.endswith((".docx", ".pptx", ".xlsx", ".pdf", ".md", ".txt", ".markdown"))
+
+
 def parse(content: bytes, mime_type: str, filename: str = "") -> ParsedDocument:
     mime = (mime_type or "").split(";")[0].strip().lower()
     name = (filename or "").lower()

@@ -13,7 +13,7 @@ WEB_PORT="${WEB_PORT:-8010}"  # 8000 and 8001 are often taken by other local pro
 
 stop_all() {
   echo "stopping..."
-  for name in web worker mcp; do
+  for name in web beat worker mcp; do
     if [[ -f "$RUN_DIR/$name.pid" ]]; then
       kill "$(cat "$RUN_DIR/$name.pid")" 2>/dev/null || true
       rm -f "$RUN_DIR/$name.pid"
@@ -64,6 +64,10 @@ echo "5/6 celery worker"
 # tasks without running them (observed 2026-10-16); Linux containers keep prefork.
 nohup .venv/bin/celery -A knowledgebase worker -l INFO --pool=threads --concurrency=4 >"$RUN_DIR/worker.log" 2>&1 &
 echo $! >"$RUN_DIR/worker.pid"
+
+echo "5b/6 celery beat (periodic syncs, reaper, sweeps)"
+nohup .venv/bin/celery -A knowledgebase beat -l INFO >"$RUN_DIR/beat.log" 2>&1 &
+echo $! >"$RUN_DIR/beat.pid"
 
 echo "6/6 web server :$WEB_PORT"
 if lsof -nP -iTCP:"$WEB_PORT" -sTCP:LISTEN >/dev/null 2>&1; then echo "error: port $WEB_PORT is in use; run WEB_PORT=<other> scripts/dev-up.sh"; stop_all; exit 1; fi

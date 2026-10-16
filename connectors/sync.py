@@ -27,6 +27,7 @@ from knowledge.api import (
     UNSUPPORTED,
     ChangeEvent,
     apply_change,
+    quarantine_source,
     revoke_link_drive_grants,
     revoke_scope_grants,
     sweep_not_seen,
@@ -336,6 +337,7 @@ def process_inbox(
             )
         if row is None:
             break
+        terminal_code = ""
         try:
             if row.kind == "drive_removed":
                 revoke_link_drive_grants(link, row.payload.get("drive_id", ""))
@@ -347,6 +349,17 @@ def process_inbox(
             break
         except ProviderError as exc:
             outcome = f"error:{exc.code}"
+            if exc.code == "too_large":
+                # Permanent for this revision: quarantine instead of a failed row
+                # that would block the reconcile barrier forever.
+                quarantine_source(
+                    scope.organization_id,
+                    row.payload.get("source_type", ""),
+                    row.source_id,
+                    reason="too_large",
+                )
+                outcome = UNSUPPORTED
+                terminal_code = "too_large"
         except Exception as exc:
             log.exception("inbox row failed", extra={"inbox_id": str(row.id)})
             outcome = f"error:{type(exc).__name__}"
@@ -360,7 +373,7 @@ def process_inbox(
             elif outcome == UNSUPPORTED:
                 # Terminal and safely quarantined: a complete access observation,
                 # so it satisfies the reconcile barrier.
-                status, code = ChangeInbox.STATUS_DONE, UNSUPPORTED
+                status, code = ChangeInbox.STATUS_DONE, terminal_code or UNSUPPORTED
             elif outcome in (DRIFT, STALE) or outcome.startswith("error:"):
                 status, code = ChangeInbox.STATUS_FAILED, outcome[:64]
             else:

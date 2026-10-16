@@ -20,7 +20,7 @@ from retrieval.api import embed_texts, publish_chunks, version_has_chunks
 
 from .chunking import chunk_document
 from .models import AccessGrant, Document, DocumentVersion
-from .parsing import parse
+from .parsing import is_supported, parse
 from .purge import maybe_purge, run_publish_hooks
 from .types import ChangeEvent, DownloadResult, RevisionDrift, SourceDocument, UnsupportedFormat
 
@@ -87,6 +87,28 @@ def _upsert_grant(
     return grant, previous
 
 
+def quarantine_document(org_id, document_id, *, reason: str) -> None:
+    """Terminal for this revision: the document stays visible as metadata only.
+    Used for unsupported formats and oversized downloads."""
+    with with_org(org_id):
+        Document.objects.filter(id=document_id).update(
+            status=Document.STATUS_QUARANTINED, updated_at=timezone.now()
+        )
+    log.info("document quarantined", extra={"document_id": str(document_id), "reason": reason})
+
+
+def quarantine_source(org_id, source_type: str, source_id: str, *, reason: str) -> bool:
+    """Quarantine by source identity (the sync layer knows no document id)."""
+    with with_org(org_id):
+        document = Document.objects.filter(
+            organization_id=org_id, source_type=source_type, source_id=source_id
+        ).first()
+    if document is None:
+        return False
+    quarantine_document(org_id, document.id, reason=reason)
+    return True
+
+
 def apply_change(link, scope, event: ChangeEvent, fetcher: Fetcher) -> str:
     if event.kind == "remove":
         return remove_access(link, scope, event)
@@ -129,7 +151,11 @@ def upsert(link, scope, event: ChangeEvent, fetcher: Fetcher) -> str:
         document_id = document.id
         version_id = version.id
 
-    # Phase 2: stage outside any transaction.
+    # Phase 2: stage outside any transaction. Unsupported types are quarantined
+    # before any download (the access observation is complete without the bytes).
+    if not is_supported(sd.mime_type, sd.title):
+        quarantine_document(org_id, document_id, reason=sd.mime_type or "unknown")
+        return UNSUPPORTED
     try:
         download = fetcher(sd)
     except RevisionDrift:
@@ -142,13 +168,7 @@ def upsert(link, scope, event: ChangeEvent, fetcher: Fetcher) -> str:
             download.content, download.mime_type or sd.mime_type, download.filename or sd.title
         )
     except UnsupportedFormat as exc:
-        with with_org(org_id):
-            Document.objects.filter(id=document_id).update(
-                status=Document.STATUS_QUARANTINED, updated_at=timezone.now()
-            )
-        log.info(
-            "unsupported format quarantined", extra={"source_id": sd.source_id, "reason": str(exc)}
-        )
+        quarantine_document(org_id, document_id, reason=str(exc))
         return UNSUPPORTED
     drafts = chunk_document(parsed)
     vectors = embed_texts([d.text for d in drafts]) if drafts else []

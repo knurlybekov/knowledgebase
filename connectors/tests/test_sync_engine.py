@@ -214,3 +214,23 @@ def test_graph_scope_loss_revokes_scope_grants():
         assert AccessGrant.objects.get().revoke_reason == "scope_lost"
         assert not Chunk.objects.exists()
     assert count_visible(principal_for(org, user)) == 0
+
+
+def test_oversized_download_is_terminal_and_quarantined(monkeypatch):
+    """Live sync 2026-10-16: an 865 MB archive left a `failed` inbox row, which
+    would have blocked the reconcile barrier forever. too_large is terminal."""
+    from connectors.http import ProviderError
+
+    org, _user, _link, scope, api, client = google_setup()
+    api.add_file("big", "Movie.pdf", b"%PDF-1.4 big")
+
+    def too_large(sd):
+        raise ProviderError("too_large")
+
+    monkeypatch.setattr(client, "fetch", too_large)
+    assert sync_scope(scope, client) == SyncRun.KIND_BOOTSTRAP
+    with with_org(org.id):
+        row = ChangeInbox.objects.get(source_id="gdrive:big")
+        assert (row.status, row.error_code) == ("done", "too_large")
+        assert Document.objects.get(source_id="gdrive:big").status == "quarantined"
+        assert SyncRun.objects.get().status == "completed"

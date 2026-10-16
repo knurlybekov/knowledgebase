@@ -343,3 +343,16 @@ def test_concurrent_ingestion_of_same_revision_yields_one_chunk_set():
         assert Chunk.objects.count() == 2
         assert Embedding.objects.count() == 2
         assert AccessGrant.objects.filter(revoked_at__isnull=True).count() == 3
+
+
+def test_unsupported_type_is_quarantined_without_a_download():
+    """Live sync 2026-10-16: a drive with 100 audio files downloaded every one of
+    them before the parser rejected it. The type check now runs before the fetch."""
+    org, user, link, scope = setup_user()
+    sd = make_source("gdrive:song", "v1", title="song.mp3", mime="audio/mpeg")
+    fetcher = StaticFetcher({"v1": b"ID3"}, mime="audio/mpeg")
+    assert apply_change(link, scope, make_event(1, sd), fetcher) == UNSUPPORTED
+    assert fetcher.calls == 0
+    with with_org(org.id):
+        assert Document.objects.get(source_id="gdrive:song").status == "quarantined"
+    assert count_visible(principal_for(org, user)) == 0
