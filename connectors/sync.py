@@ -36,13 +36,14 @@ from knowledge.api import (
 from .api import set_link_status
 from .http import AuthError, ProviderError, ResyncRequired, ScopeLost
 from .models import ChangeInbox, ConnectorLink, SyncLease, SyncRun, SyncScope
-from .providers.base import Page, ProviderClient
+from .providers.base import Item, Page, ProviderClient
 
 log = logging.getLogger(__name__)
 
 BUSY = "busy"
 LEASE_LOST = "lease_lost"
 MAX_INBOX_ATTEMPTS = 2
+REQUEUED = "requeued"
 
 
 class LeaseLost(Exception):
@@ -301,6 +302,40 @@ def _finish_run(scope, run, status, error_code) -> None:
 # --- inbox processing -----------------------------------------------------------
 
 
+def _refresh_item(client: ProviderClient, row: ChangeInbox):
+    try:
+        return client.refresh(_event_from_row(row).document)
+    except (ProviderError, AuthError):
+        return None
+
+
+def _requeue_refreshed(scope: SyncScope, token: str | None, row: ChangeInbox, refreshed) -> None:
+    """Append one row with the item's current metadata, fenced by the lease.
+    The attempt counter carries over so a file that keeps changing stops here."""
+    with with_org(scope.organization_id):
+        with transaction.atomic():
+            if token is not None:
+                _fenced_renew(scope, token)
+            scope_row = SyncScope.objects.select_for_update().get(id=scope.id)
+            seq = scope_row.last_seq + 1
+            ChangeInbox.objects.create(
+                organization_id=scope.organization_id,
+                link_id=scope.link_id,
+                scope=scope_row,
+                seq=seq,
+                source_id=row.source_id,
+                kind=ChangeInbox.KIND_UPSERT,
+                payload=_item_payload(
+                    Item(kind="upsert", source_id=row.source_id, document=refreshed)
+                ),
+                observed_at=timezone.now(),
+                reconcile_generation=row.reconcile_generation,
+                attempts=row.attempts + 1,
+            )
+            scope_row.last_seq = seq
+            scope_row.save(update_fields=["last_seq"])
+
+
 def _event_from_row(row: ChangeInbox) -> ChangeEvent:
     from datetime import datetime
 
@@ -383,8 +418,29 @@ def process_inbox(
         except Exception as exc:
             log.exception("inbox row failed", extra={"inbox_id": str(row.id)})
             outcome = f"error:{type(exc).__name__}"
+        if (
+            outcome == DRIFT
+            and row.kind == ChangeInbox.KIND_UPSERT
+            and row.attempts + 1 < MAX_INBOX_ATTEMPTS
+        ):
+            # The listing label is stale (the file changed during the backlog):
+            # re-read the item once and queue its current revision instead of
+            # waiting for the next poll to supersede a failed row.
+            refreshed = _refresh_item(client, row)
+            if refreshed is not None and refreshed.version_label != row.payload.get(
+                "version_label"
+            ):
+                _requeue_refreshed(scope, token, row, refreshed)
+                outcome = REQUEUED
         counts[outcome] = counts.get(outcome, 0) + 1
         with with_org(scope.organization_id):
+            if outcome == REQUEUED:
+                ChangeInbox.objects.filter(id=row.id).update(
+                    status=ChangeInbox.STATUS_OBSOLETE,
+                    error_code="drift",
+                    attempts=F("attempts") + 1,
+                )
+                continue
             if outcome == STALE and row.attempts + 1 < MAX_INBOX_ATTEMPTS:
                 ChangeInbox.objects.filter(id=row.id).update(attempts=F("attempts") + 1)
                 continue  # requeued once; the retry takes the fast path

@@ -266,3 +266,33 @@ def test_missing_lease_row_is_recreated_instead_of_blocking_the_scope():
         SyncLease.objects.filter(scope=scope).delete()
     assert acquire_lease(scope) is not None
     assert acquire_lease(scope) is None  # now held
+
+
+def test_stale_listing_label_is_refreshed_once_instead_of_failing():
+    """Live drive 2026-10-16: files edited during a long backlog drifted and left
+    failed rows. The item is re-read once and its current revision is queued."""
+    org, user, _link, scope, api, client = google_setup()
+    api.add_file("a", "Policy.md", b"# Policy\nVacation is fifteen days.")
+    state = {"done": False}
+
+    def edit_before_download(file_id):
+        if file_id == "a" and not state["done"]:
+            state["done"] = True
+            api.modify("a", b"# Policy\nVacation is now twenty days.")
+
+    api.on_get_file = edit_before_download
+    assert sync_scope(scope, client) == SyncRun.KIND_BOOTSTRAP
+    with with_org(org.id):
+        rows = sorted(
+            ChangeInbox.objects.filter(scope=scope).values_list("seq", "status", "error_code")
+        )
+        assert rows == [(1, "obsolete", "drift"), (2, "done", "")]
+        assert ChangeInbox.objects.get(seq=2).attempts == 2  # carried counter plus this run
+        # The placeholder version from the stale label is purged; the current one is present.
+        present = list(
+            DocumentVersion.objects.filter(
+                document__source_id="gdrive:a", content_state="present"
+            ).values_list("version_label", flat=True)
+        )
+        assert present == ["rev-a-2"]
+    assert sorted(visible_labels(principal_for(org, user))) == ["rev-a-2"]

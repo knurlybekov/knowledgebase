@@ -190,6 +190,15 @@ class GoogleDriveClient:
             yield Page(items, now, done_cursor=data.get("newStartPageToken", token))
             return
 
+    def refresh(self, sd: SourceDocument) -> SourceDocument | None:
+        file_id = sd.source_id.split(":", 1)[1]
+        try:
+            return to_source_document(self.api.get_file(file_id))
+        except ProviderError as exc:
+            if exc.status == 404:
+                return None
+            raise
+
     # --- validated download --------------------------------------------------
     def fetch(self, sd: SourceDocument) -> DownloadResult:
         file_id = sd.source_id.split(":", 1)[1]

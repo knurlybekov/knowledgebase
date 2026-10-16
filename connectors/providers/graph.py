@@ -121,6 +121,18 @@ class GraphClient:
     def list_changes(self, scope, cursor: str) -> Iterator[Page]:
         yield from self._walk(scope, cursor)
 
+    def refresh(self, sd: SourceDocument) -> SourceDocument | None:
+        _, drive_id, item_id = sd.source_id.split(":", 2)
+        try:
+            item = self.api.get(
+                f"{GRAPH}/drives/{quote(drive_id)}/items/{quote(item_id)}?$select={DELTA_SELECT}"
+            )
+        except ProviderError as exc:
+            if exc.status == 404:
+                return None
+            raise
+        return to_source_document(item, drive_id, sd.site_id)
+
     def fetch(self, sd: SourceDocument) -> DownloadResult:
         _, drive_id, item_id = sd.source_id.split(":", 2)
         base = f"{GRAPH}/drives/{quote(drive_id)}/items/{quote(item_id)}"
