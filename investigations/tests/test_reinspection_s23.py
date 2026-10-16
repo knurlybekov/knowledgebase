@@ -257,3 +257,20 @@ def test_attestation_runs_both_prompts_and_fails_on_a_foreign_tool(tmp_path, mon
         attestation, "_run_prompt", lambda p, h, e, m: (0, {"mcp__knowledge__search_knowledge"}, "")
     )
     assert attestation.run()["ok"] is True
+
+
+def test_runner_server_module_has_a_main_guard():
+    """The compose CMD runs serve.py as a script; without this guard the
+    container exits 0 at once with no log line (observed live 2026-10-15)."""
+    import ast
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parents[2] / "hermes" / "runner" / "serve.py"
+    tree = ast.parse(source.read_text())
+    guards = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.If)
+        and "__main__" in ast.get_source_segment(source.read_text(), node.test)
+    ]
+    assert guards and "main()" in ast.get_source_segment(source.read_text(), guards[0])

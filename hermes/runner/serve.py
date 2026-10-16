@@ -239,3 +239,7 @@ def _expiry_loop() -> None:
                 print(json.dumps({"event": "runner.expired_records", "count": n}), flush=True)
         except Exception as exc:
             print(json.dumps({"event": "runner.expiry_error", "error": str(exc)[:200]}), flush=True)
+
+
+if __name__ == "__main__":
+    main()

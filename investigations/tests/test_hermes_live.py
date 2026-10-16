@@ -28,9 +28,13 @@ def _image_present() -> bool:
 def test_attestation_passes_with_live_model():
     """The pinned invocation, against the self-check MCP server: only knowledge
     tools are enabled, the bearer arrives, the run exits 0."""
+    # posix_spawn, not fork: this test runs late in the suite, after tests that
+    # used threads, and a fork() of the multithreaded pytest process on macOS
+    # crashed the child (SIGSEGV, no output) before `docker` started. CPython
+    # uses posix_spawn only for an absolute executable with close_fds=False.
     proc = subprocess.run(
         [
-            "docker",
+            shutil.which("docker"),
             "run",
             "--rm",
             "-e",
@@ -43,7 +47,10 @@ def test_attestation_passes_with_live_model():
         capture_output=True,
         text=True,
         timeout=400,
+        close_fds=False,
     )
-    result = json.loads(proc.stdout.strip().splitlines()[-1])
+    lines = proc.stdout.strip().splitlines()
+    assert lines, f"no output from docker run: exit={proc.returncode} stderr={proc.stderr[-1500:]}"
+    result = json.loads(lines[-1])
     assert result["ok"], result
     assert all(t.startswith("mcp__knowledge__") for t in result["tools"]), result
