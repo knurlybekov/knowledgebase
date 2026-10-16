@@ -356,3 +356,31 @@ def test_unsupported_type_is_quarantined_without_a_download():
     with with_org(org.id):
         assert Document.objects.get(source_id="gdrive:song").status == "quarantined"
     assert count_visible(principal_for(org, user)) == 0
+
+
+def test_unreadable_content_of_a_supported_type_is_quarantined():
+    """Live sync 2026-10-16: 370-byte .docx placeholders (BadZipFile) and an empty
+    PDF (EmptyFileError) each left a failed inbox row."""
+    org, user, link, scope = setup_user()
+    sd = make_source(
+        "gdrive:stub",
+        "v1",
+        title="PLAYBOOK.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+    fetcher = StaticFetcher({"v1": b"not a zip archive"}, mime=sd.mime_type)
+    assert apply_change(link, scope, make_event(1, sd), fetcher) == UNSUPPORTED
+    assert fetcher.calls == 1
+    with with_org(org.id):
+        assert Document.objects.get(source_id="gdrive:stub").status == "quarantined"
+    empty_pdf = make_source("gdrive:empty", "v1", title="empty.pdf", mime="application/pdf")
+    assert (
+        apply_change(
+            link,
+            scope,
+            make_event(2, empty_pdf),
+            StaticFetcher({"v1": b""}, mime="application/pdf"),
+        )
+        == UNSUPPORTED
+    )
+    assert count_visible(principal_for(org, user)) == 0

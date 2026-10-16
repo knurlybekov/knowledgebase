@@ -30,8 +30,22 @@ def is_supported(mime_type: str, filename: str = "") -> bool:
 
 
 def parse(content: bytes, mime_type: str, filename: str = "") -> ParsedDocument:
+    """Raises UnsupportedFormat for an unknown type and for content the parser
+    for that type cannot read (truncated zip, empty PDF, placeholder files):
+    both are terminal for the revision, never a retry."""
     mime = (mime_type or "").split(";")[0].strip().lower()
     name = (filename or "").lower()
+    try:
+        return _dispatch(content, mime, name)
+    except UnsupportedFormat:
+        raise
+    except Exception as exc:
+        raise UnsupportedFormat(
+            f"unreadable {mime or name or 'unknown'}: {type(exc).__name__}"
+        ) from exc
+
+
+def _dispatch(content: bytes, mime: str, name: str) -> ParsedDocument:
     if mime == DOCX or name.endswith(".docx"):
         return _parse_docx(content)
     if mime == PPTX or name.endswith(".pptx"):
