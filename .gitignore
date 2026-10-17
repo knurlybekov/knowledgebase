@@ -30,3 +30,18 @@ web/static/css/dist/
 
 # Celery beat state
 celerybeat-schedule*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+
+# Logs, coverage, type-checker caches
+*.log
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Hermes source clone and scratch files (never part of the repository)
+hermes-src/
+scratch/
