@@ -2,15 +2,32 @@
 {% load org_tags %}
 {% block title %}Investigations · {{ organization.name }}{% endblock %}
 {% block content %}
-<h1 class="mb-3 text-xl font-semibold">Deep investigations</h1>
+<h1 class="h1 mb-1">Deep investigations</h1>
+<p class="muted mb-5 max-w-2xl">The agent reads several documents, then reports statements with their passages, conflicts, and what the evidence does not establish.</p>
 {% if hermes_enabled %}
-<form method="post" action="{% org_url 'web:investigation_start' %}" class="mb-6 flex gap-2">
+<form method="post" action="{% org_url 'web:investigation_start' %}" class="card raised mb-8 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4">
   {% csrf_token %}
-  <input class="w-full rounded border px-3 py-2" type="text" name="q" maxlength="2000" required placeholder="Why did we change our cloud hosting provider?">
-  <button class="rounded bg-slate-900 px-3 py-1.5 text-white" type="submit">Investigate</button>
+  <label class="sr-only" for="q">Question</label>
+  <input id="q" class="field field-lg flex-1" type="text" name="q" maxlength="2000" required placeholder="Why did we change our cloud hosting provider?" autocomplete="off">
+  <button class="btn btn-primary h-13 shrink-0 px-5" type="submit">Investigate
+    <span class="flex h-6 w-6 items-center justify-center rounded-full bg-white/15"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+  </button>
 </form>
-{% else %}<p class="mb-6 text-sm text-amber-700">Deep Investigation is disabled on this deployment.</p>{% endif %}
-<table class="w-full text-sm"><thead><tr class="text-left"><th>Started</th><th>Question</th><th>Status</th></tr></thead><tbody>
-{% for r in rows %}<tr class="border-t"><td class="py-1 whitespace-nowrap">{{ r.created_at|date:"Y-m-d H:i" }}</td><td><a class="underline" href="{% org_url 'web:investigation_detail' r.id %}">{{ r.question|truncatechars:120 }}</a></td><td>{{ r.status }}</td></tr>{% empty %}<tr><td colspan="3">No investigations yet.</td></tr>{% endfor %}
-</tbody></table>
+{% else %}<p class="card mb-8 px-4 py-3 text-sm text-warn">Deep Investigation is disabled on this deployment.</p>{% endif %}
+<div class="card overflow-hidden">
+  <table class="table">
+    <thead><tr><th class="w-40">Started</th><th>Question</th><th class="w-32">Status</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="faint whitespace-nowrap">{{ r.created_at|date:"Y-m-d H:i" }}</td>
+        <td><a class="link" href="{% org_url 'web:investigation_detail' r.id %}">{{ r.question|truncatechars:140 }}</a></td>
+        <td>{% include "investigations/_pill.html" with status=r.status %}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3" class="faint py-10 text-center">No investigations yet. Ask a why or history question above.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

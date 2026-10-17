@@ -1,0 +1,688 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-17T09:24:00Z",
+  "title": "Design System: Knowledgebase",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Silver Ground",
+        "canonical": "oklch(96.7% 0.003 265)",
+        "tonalRamp": [
+          "oklch(15% 0.003 265)",
+          "oklch(25% 0.003 265)",
+          "oklch(35% 0.003 265)",
+          "oklch(45% 0.003 265)",
+          "oklch(55% 0.003 265)",
+          "oklch(65% 0.003 265)",
+          "oklch(80% 0.003 265)",
+          "oklch(95% 0.003 265)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Work Surface",
+        "canonical": "oklch(100.0% 0.000 90)",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(25% 0.000 90)",
+          "oklch(35% 0.000 90)",
+          "oklch(45% 0.000 90)",
+          "oklch(55% 0.000 90)",
+          "oklch(65% 0.000 90)",
+          "oklch(80% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Quiet Surface",
+        "canonical": "oklch(98.2% 0.003 265)",
+        "tonalRamp": [
+          "oklch(15% 0.003 265)",
+          "oklch(25% 0.003 265)",
+          "oklch(35% 0.003 265)",
+          "oklch(45% 0.003 265)",
+          "oklch(55% 0.003 265)",
+          "oklch(65% 0.003 265)",
+          "oklch(80% 0.003 265)",
+          "oklch(95% 0.003 265)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Graphite Ink",
+        "canonical": "oklch(18.7% 0.011 268)",
+        "tonalRamp": [
+          "oklch(15% 0.011 268)",
+          "oklch(25% 0.011 268)",
+          "oklch(35% 0.011 268)",
+          "oklch(45% 0.011 268)",
+          "oklch(55% 0.011 268)",
+          "oklch(65% 0.011 268)",
+          "oklch(80% 0.011 268)",
+          "oklch(95% 0.011 268)"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Secondary Ink",
+        "canonical": "oklch(43.5% 0.026 268)",
+        "tonalRamp": [
+          "oklch(15% 0.026 268)",
+          "oklch(25% 0.026 268)",
+          "oklch(35% 0.026 268)",
+          "oklch(45% 0.026 268)",
+          "oklch(55% 0.026 268)",
+          "oklch(65% 0.026 268)",
+          "oklch(80% 0.026 268)",
+          "oklch(95% 0.026 268)"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Tertiary Ink",
+        "canonical": "oklch(54.7% 0.026 272)",
+        "tonalRamp": [
+          "oklch(15% 0.026 272)",
+          "oklch(25% 0.026 272)",
+          "oklch(35% 0.026 272)",
+          "oklch(45% 0.026 272)",
+          "oklch(55% 0.026 272)",
+          "oklch(65% 0.026 272)",
+          "oklch(80% 0.026 272)",
+          "oklch(95% 0.026 272)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Ink Blue",
+        "canonical": "oklch(52.6% 0.199 268)",
+        "tonalRamp": [
+          "oklch(15% 0.160 268)",
+          "oklch(25% 0.160 268)",
+          "oklch(35% 0.160 268)",
+          "oklch(45% 0.160 268)",
+          "oklch(55% 0.160 268)",
+          "oklch(65% 0.160 268)",
+          "oklch(80% 0.160 268)",
+          "oklch(95% 0.160 268)"
+        ]
+      },
+      "accent-fg": {
+        "role": "primary",
+        "displayName": "Accent Foreground",
+        "canonical": "oklch(100.0% 0.000 90)",
+        "tonalRamp": [
+          "oklch(15% 0.000 90)",
+          "oklch(25% 0.000 90)",
+          "oklch(35% 0.000 90)",
+          "oklch(45% 0.000 90)",
+          "oklch(55% 0.000 90)",
+          "oklch(65% 0.000 90)",
+          "oklch(80% 0.000 90)",
+          "oklch(95% 0.000 90)"
+        ]
+      },
+      "ok": {
+        "role": "state",
+        "displayName": "Verified Green",
+        "canonical": "oklch(56.0% 0.134 153)",
+        "tonalRamp": [
+          "oklch(15% 0.134 153)",
+          "oklch(25% 0.134 153)",
+          "oklch(35% 0.134 153)",
+          "oklch(45% 0.134 153)",
+          "oklch(55% 0.134 153)",
+          "oklch(65% 0.134 153)",
+          "oklch(80% 0.134 153)",
+          "oklch(95% 0.134 153)"
+        ]
+      },
+      "warn": {
+        "role": "state",
+        "displayName": "Candidate Amber",
+        "canonical": "oklch(62.6% 0.125 70)",
+        "tonalRamp": [
+          "oklch(15% 0.125 70)",
+          "oklch(25% 0.125 70)",
+          "oklch(35% 0.125 70)",
+          "oklch(45% 0.125 70)",
+          "oklch(55% 0.125 70)",
+          "oklch(65% 0.125 70)",
+          "oklch(80% 0.125 70)",
+          "oklch(95% 0.125 70)"
+        ]
+      },
+      "bad": {
+        "role": "state",
+        "displayName": "Withheld Red",
+        "canonical": "oklch(55.7% 0.172 25)",
+        "tonalRamp": [
+          "oklch(15% 0.160 25)",
+          "oklch(25% 0.160 25)",
+          "oklch(35% 0.160 25)",
+          "oklch(45% 0.160 25)",
+          "oklch(55% 0.160 25)",
+          "oklch(65% 0.160 25)",
+          "oklch(80% 0.160 25)",
+          "oklch(95% 0.160 25)"
+        ]
+      },
+      "ground-dark": {
+        "role": "neutral",
+        "displayName": "Near Black Ground (dark)",
+        "canonical": "oklch(14.1% 0.004 286)",
+        "tonalRamp": [
+          "oklch(15% 0.004 286)",
+          "oklch(25% 0.004 286)",
+          "oklch(35% 0.004 286)",
+          "oklch(45% 0.004 286)",
+          "oklch(55% 0.004 286)",
+          "oklch(65% 0.004 286)",
+          "oklch(80% 0.004 286)",
+          "oklch(95% 0.004 286)"
+        ]
+      },
+      "surface-dark": {
+        "role": "neutral",
+        "displayName": "Graphite Surface (dark)",
+        "canonical": "oklch(19.3% 0.006 286)",
+        "tonalRamp": [
+          "oklch(15% 0.006 286)",
+          "oklch(25% 0.006 286)",
+          "oklch(35% 0.006 286)",
+          "oklch(45% 0.006 286)",
+          "oklch(55% 0.006 286)",
+          "oklch(65% 0.006 286)",
+          "oklch(80% 0.006 286)",
+          "oklch(95% 0.006 286)"
+        ]
+      },
+      "surface-2-dark": {
+        "role": "neutral",
+        "displayName": "Quiet Surface (dark)",
+        "canonical": "oklch(22.4% 0.010 286)",
+        "tonalRamp": [
+          "oklch(15% 0.010 286)",
+          "oklch(25% 0.010 286)",
+          "oklch(35% 0.010 286)",
+          "oklch(45% 0.010 286)",
+          "oklch(55% 0.010 286)",
+          "oklch(65% 0.010 286)",
+          "oklch(80% 0.010 286)",
+          "oklch(95% 0.010 286)"
+        ]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Off-White Ink (dark)",
+        "canonical": "oklch(95.9% 0.004 286)",
+        "tonalRamp": [
+          "oklch(15% 0.004 286)",
+          "oklch(25% 0.004 286)",
+          "oklch(35% 0.004 286)",
+          "oklch(45% 0.004 286)",
+          "oklch(55% 0.004 286)",
+          "oklch(65% 0.004 286)",
+          "oklch(80% 0.004 286)",
+          "oklch(95% 0.004 286)"
+        ]
+      },
+      "ink-2-dark": {
+        "role": "neutral",
+        "displayName": "Secondary Ink (dark)",
+        "canonical": "oklch(73.0% 0.019 276)",
+        "tonalRamp": [
+          "oklch(15% 0.019 276)",
+          "oklch(25% 0.019 276)",
+          "oklch(35% 0.019 276)",
+          "oklch(45% 0.019 276)",
+          "oklch(55% 0.019 276)",
+          "oklch(65% 0.019 276)",
+          "oklch(80% 0.019 276)",
+          "oklch(95% 0.019 276)"
+        ]
+      },
+      "ink-3-dark": {
+        "role": "neutral",
+        "displayName": "Tertiary Ink (dark)",
+        "canonical": "oklch(61.7% 0.030 277)",
+        "tonalRamp": [
+          "oklch(15% 0.030 277)",
+          "oklch(25% 0.030 277)",
+          "oklch(35% 0.030 277)",
+          "oklch(45% 0.030 277)",
+          "oklch(55% 0.030 277)",
+          "oklch(65% 0.030 277)",
+          "oklch(80% 0.030 277)",
+          "oklch(95% 0.030 277)"
+        ]
+      },
+      "accent-dark": {
+        "role": "primary",
+        "displayName": "Ink Blue (dark)",
+        "canonical": "oklch(69.1% 0.163 273)",
+        "tonalRamp": [
+          "oklch(15% 0.160 273)",
+          "oklch(25% 0.160 273)",
+          "oklch(35% 0.160 273)",
+          "oklch(45% 0.160 273)",
+          "oklch(55% 0.160 273)",
+          "oklch(65% 0.160 273)",
+          "oklch(80% 0.160 273)",
+          "oklch(95% 0.160 273)"
+        ]
+      },
+      "accent-fg-dark": {
+        "role": "primary",
+        "displayName": "Accent Foreground (dark)",
+        "canonical": "oklch(16.7% 0.038 274)",
+        "tonalRamp": [
+          "oklch(15% 0.038 274)",
+          "oklch(25% 0.038 274)",
+          "oklch(35% 0.038 274)",
+          "oklch(45% 0.038 274)",
+          "oklch(55% 0.038 274)",
+          "oklch(65% 0.038 274)",
+          "oklch(80% 0.038 274)",
+          "oklch(95% 0.038 274)"
+        ]
+      },
+      "ok-dark": {
+        "role": "state",
+        "displayName": "Verified Green (dark)",
+        "canonical": "oklch(75.5% 0.158 154)",
+        "tonalRamp": [
+          "oklch(15% 0.158 154)",
+          "oklch(25% 0.158 154)",
+          "oklch(35% 0.158 154)",
+          "oklch(45% 0.158 154)",
+          "oklch(55% 0.158 154)",
+          "oklch(65% 0.158 154)",
+          "oklch(80% 0.158 154)",
+          "oklch(95% 0.158 154)"
+        ]
+      },
+      "warn-dark": {
+        "role": "state",
+        "displayName": "Candidate Amber (dark)",
+        "canonical": "oklch(76.7% 0.128 78)",
+        "tonalRamp": [
+          "oklch(15% 0.128 78)",
+          "oklch(25% 0.128 78)",
+          "oklch(35% 0.128 78)",
+          "oklch(45% 0.128 78)",
+          "oklch(55% 0.128 78)",
+          "oklch(65% 0.128 78)",
+          "oklch(80% 0.128 78)",
+          "oklch(95% 0.128 78)"
+        ]
+      },
+      "bad-dark": {
+        "role": "state",
+        "displayName": "Withheld Red (dark)",
+        "canonical": "oklch(68.8% 0.164 22)",
+        "tonalRamp": [
+          "oklch(15% 0.160 22)",
+          "oklch(25% 0.160 22)",
+          "oklch(35% 0.160 22)",
+          "oklch(45% 0.160 22)",
+          "oklch(55% 0.160 22)",
+          "oklch(65% 0.160 22)",
+          "oklch(80% 0.160 22)",
+          "oklch(95% 0.160 22)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline, 8% graphite alpha",
+        "alpha": true
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Hairline Strong, 16% graphite alpha",
+        "alpha": true
+      },
+      "accent-soft": {
+        "role": "primary",
+        "displayName": "Ink Blue Soft, 10% alpha",
+        "alpha": true
+      },
+      "ok-soft": {
+        "role": "state",
+        "displayName": "Verified Green Soft",
+        "alpha": true
+      },
+      "warn-soft": {
+        "role": "state",
+        "displayName": "Candidate Amber Soft",
+        "alpha": true
+      },
+      "bad-soft": {
+        "role": "state",
+        "displayName": "Withheld Red Soft",
+        "alpha": true
+      },
+      "info": {
+        "role": "primary",
+        "displayName": "Info, same value as accent",
+        "alpha": true
+      },
+      "glass": {
+        "role": "neutral",
+        "displayName": "Glass, 72% white",
+        "alpha": true
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The one h1 per page; 24px is the largest size in the system."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section h2 and the large ask field text."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Document default; descriptions and claims. ss01 and cv11 are on for the whole document."
+      },
+      "body-dense": {
+        "displayName": "Body Dense",
+        "purpose": "Tables, buttons, chips, segmented options, source excerpts, activity rows."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Field labels, table headers, section labels. Sentence case, tertiary ink, never uppercase."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Source type and version lines, error codes, ids, activity event types. Never sentences."
+      },
+      "cite": {
+        "displayName": "Cite",
+        "purpose": "Numbers in citation chips and source badges."
+      }
+    },
+    "shadows": [
+      {
+        "name": "soft",
+        "value": "0 1px 2px rgb(17 19 24 / 0.06), 0 8px 24px rgb(17 19 24 / 0.06)",
+        "dark": "0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35)",
+        "purpose": "Every .card and the glass top bar at rest."
+      },
+      {
+        "name": "raised",
+        "value": "0 2px 4px rgb(17 19 24 / 0.08), 0 16px 40px rgb(17 19 24 / 0.1)",
+        "dark": "0 2px 4px rgb(0 0 0 / 0.5), 0 16px 40px rgb(0 0 0 / 0.45)",
+        "purpose": "Ask box, login card, hovered pending-review card, lit source card."
+      },
+      {
+        "name": "button-primary",
+        "value": "0 1px 2px rgb(0 0 0 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.18)",
+        "purpose": "Thin top highlight on the filled accent button."
+      },
+      {
+        "name": "segment-selected",
+        "value": "0 1px 2px rgb(0 0 0 / 0.08)",
+        "purpose": "Checked option in the segmented control."
+      },
+      {
+        "name": "focus-halo-field",
+        "value": "0 0 0 4px var(--accent-soft)",
+        "purpose": "Field focus, with border-color set to the accent."
+      },
+      {
+        "name": "focus-halo-source",
+        "value": "0 0 0 3px var(--accent-soft), var(--shadow-raised)",
+        "purpose": "A lit source card, with a 1px lift."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.32, 0.72, 0, 1)",
+        "purpose": "The only easing; exposed to Tailwind as ease-spring."
+      },
+      {
+        "name": "duration-state",
+        "value": "180ms",
+        "purpose": "Buttons, chips, segments, fields, nav links, citation chips, claims, sources, disclosure chevron."
+      },
+      {
+        "name": "duration-row",
+        "value": "150ms",
+        "purpose": "Table and list row hover fill."
+      },
+      {
+        "name": "duration-settle",
+        "value": "240ms",
+        "purpose": "HTMX swap of the investigation status block fades from 0.6 to 1."
+      },
+      {
+        "name": "duration-meter",
+        "value": "400ms",
+        "purpose": "Progress meter width."
+      },
+      {
+        "name": "pulse",
+        "value": "1.6s infinite",
+        "purpose": "Running pill dot: opacity 0.9 to 0.35, scale 1 to 0.7."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "Under prefers-reduced-motion: reduce every transition and animation duration collapses."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "2xl",
+        "value": "1536px"
+      }
+    ],
+    "theming": {
+      "attribute": "data-theme",
+      "values": [
+        "light",
+        "dark"
+      ],
+      "host": "html",
+      "default": "prefers-color-scheme",
+      "storage": "localStorage key 'theme'",
+      "note": "Tokens are CSS custom properties on :root and [data-theme=\"dark\"], mapped to Tailwind v4 through @theme inline in web/tailwind/source.css. The -dark frontmatter keys hold the dark values of the same-named tokens."
+    }
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default pill button on the work surface with a strong hairline; hover darkens the border and fills the quiet surface.",
+      "html": "<button class=\"ds-btn\">Save candidate</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 0.5rem; height: 2.25rem; padding: 0 0.875rem; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color 180ms var(--ease), border-color 180ms var(--ease), transform 180ms var(--ease), box-shadow 180ms var(--ease); } .ds-btn:hover { background: var(--surface-2); border-color: var(--text-3); } .ds-btn:active { transform: scale(0.98); } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn:disabled { opacity: 0.5; pointer-events: none; }"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Accent-filled pill with a thin inset top highlight; the ask-box variant is 52px tall with a round arrow badge.",
+      "html": "<button class=\"ds-btn ds-btn-primary ds-btn-ask\">Search <span class=\"ds-btn-badge\"><svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='M5 12h14M13 6l6 6-6 6'/></svg></span></button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 0.5rem; height: 2.25rem; padding: 0 0.875rem; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color 180ms var(--ease), border-color 180ms var(--ease), transform 180ms var(--ease), box-shadow 180ms var(--ease); } .ds-btn:hover { background: var(--surface-2); border-color: var(--text-3); } .ds-btn:active { transform: scale(0.98); } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn:disabled { opacity: 0.5; pointer-events: none; } .ds-btn-primary { background: var(--accent); border-color: transparent; color: var(--accent-fg); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.18); } .ds-btn-primary:hover { background: color-mix(in oklab, var(--accent) 88%, black); border-color: transparent; } .ds-btn-ask { height: 3.25rem; padding: 0 1.25rem; } .ds-btn-badge { display: flex; width: 1.5rem; height: 1.5rem; align-items: center; justify-content: center; border-radius: 999px; background: rgb(255 255 255 / 0.15); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Borderless pill in secondary ink for Log out and the theme toggle.",
+      "html": "<button class=\"ds-btn ds-btn-ghost ds-btn-sm\">Log out</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 0.5rem; height: 2.25rem; padding: 0 0.875rem; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color 180ms var(--ease), border-color 180ms var(--ease), transform 180ms var(--ease), box-shadow 180ms var(--ease); } .ds-btn:hover { background: var(--surface-2); border-color: var(--text-3); } .ds-btn:active { transform: scale(0.98); } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn:disabled { opacity: 0.5; pointer-events: none; } .ds-btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); } .ds-btn-ghost:hover { background: var(--surface-2); color: var(--text); border-color: transparent; } .ds-btn-sm { height: 1.875rem; padding: 0 0.75rem; font-size: 0.8125rem; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Default shape with red text; hover fills the red soft tint. Cancel and Unlink.",
+      "html": "<button class=\"ds-btn ds-btn-danger ds-btn-sm\">Cancel</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 0.5rem; height: 2.25rem; padding: 0 0.875rem; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; transition: background-color 180ms var(--ease), border-color 180ms var(--ease), transform 180ms var(--ease), box-shadow 180ms var(--ease); } .ds-btn:hover { background: var(--surface-2); border-color: var(--text-3); } .ds-btn:active { transform: scale(0.98); } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn:disabled { opacity: 0.5; pointer-events: none; } .ds-btn-danger { color: var(--bad); } .ds-btn-danger:hover { background: var(--bad-soft); border-color: transparent; } .ds-btn-sm { height: 1.875rem; padding: 0 0.75rem; font-size: 0.8125rem; }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "40px text field with a 10px radius; focus swaps the outline for an accent border and a 4px soft halo. The large ask variant is 52px with a 12px radius.",
+      "html": "<input class=\"ds-field ds-field-lg\" type=\"text\" placeholder=\"What is our vacation policy?\">",
+      "css": ".ds-field { width: 100%; height: 2.5rem; padding: 0 0.875rem; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); caret-color: var(--accent); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-size: 0.9375rem; transition: border-color 180ms var(--ease), box-shadow 180ms var(--ease); } .ds-field::placeholder { color: var(--text-3); } .ds-field:hover { border-color: var(--text-3); } .ds-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); } .ds-field-lg { height: 3.25rem; padding: 0 1rem; font-size: 1.0625rem; border-radius: 12px; }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "custom",
+      "refersTo": "segmented",
+      "description": "Radio group as a pill track on the quiet surface; the checked option rises to the work surface with a 1px shadow.",
+      "html": "<fieldset class=\"ds-seg\"><label><input type=\"radio\" name=\"ds-mode\" checked> Quick Search</label><label><input type=\"radio\" name=\"ds-mode\"> Deep Investigation</label></fieldset>",
+      "css": ".ds-seg { display: inline-flex; padding: 3px; margin: 0; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; } .ds-seg label { position: relative; display: inline-flex; align-items: center; gap: 0.375rem; height: 1.875rem; padding: 0 0.875rem; border-radius: 999px; font-size: 0.8125rem; font-weight: 500; color: var(--text-2); cursor: pointer; transition: color 180ms var(--ease), background-color 180ms var(--ease), box-shadow 180ms var(--ease); } .ds-seg input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; } .ds-seg label:has(input:checked) { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); } .ds-seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }"
+    },
+    {
+      "name": "Filter Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Checkbox as a 28px outlined pill; checked fills the accent soft tint and drops the border.",
+      "html": "<label class=\"ds-chip\"><input type=\"checkbox\" checked> Google Drive</label> <label class=\"ds-chip\"><input type=\"checkbox\"> SharePoint</label>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 0.375rem; height: 1.75rem; padding: 0 0.75rem; border-radius: 999px; border: 1px solid var(--line-strong); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-size: 0.8125rem; color: var(--text-2); cursor: pointer; position: relative; transition: background-color 180ms var(--ease), border-color 180ms var(--ease), color 180ms var(--ease); } .ds-chip input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; } .ds-chip:has(input:checked) { background: var(--accent-soft); border-color: transparent; color: var(--text); } .ds-chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }"
+    },
+    {
+      "name": "Status Pill",
+      "kind": "chip",
+      "refersTo": "pill",
+      "description": "22px pill with a leading dot in currentColor; ok, warn, bad, and info variants take the soft tint as fill and drop the border. pill-live pulses the dot for Running.",
+      "html": "<span class=\"ds-pill ds-pill-ok\">Verified</span> <span class=\"ds-pill ds-pill-warn\">Candidate</span> <span class=\"ds-pill ds-pill-bad\">Withheld</span> <span class=\"ds-pill ds-pill-info ds-pill-live\">Running</span> <span class=\"ds-pill\">Cancelled</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 0.375rem; height: 1.375rem; padding: 0 0.5rem; border-radius: 999px; font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; line-height: 1; white-space: nowrap; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--line); } .ds-pill::before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: 0.8; } .ds-pill-ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; } .ds-pill-warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; } .ds-pill-bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; } .ds-pill-info { background: var(--info-soft); color: var(--info); border-color: transparent; } .ds-pill-live::before { animation: ds-pulse 1.6s var(--ease) infinite; } @keyframes ds-pulse { 0%, 100% { opacity: 0.9; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } } @media (prefers-reduced-motion: reduce) { .ds-pill-live::before { animation-duration: 0.01ms; } }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Work surface, 14px radius, 8% hairline, soft two-layer shadow. raised swaps in the larger shadow for the ask box and login.",
+      "html": "<div class=\"ds-card\"><p class=\"ds-card-title\">No investigations yet</p><p class=\"ds-card-muted\">Pick Deep Investigation for a question that needs several documents.</p></div>",
+      "css": ".ds-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius, 14px); box-shadow: var(--shadow); padding: 1.25rem; font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; color: var(--text); } .ds-card-title { margin: 0; font-weight: 500; font-size: 0.9375rem; } .ds-card-muted { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--text-2); }"
+    },
+    {
+      "name": "Evidence Pair",
+      "kind": "custom",
+      "refersTo": "claim",
+      "description": "Signature: a claim with numbered citation chips and its source card; hover or focus on either side lights both with the accent in 180ms.",
+      "html": "<div class=\"ds-ev\"><ol class=\"ds-claims\"><li class=\"ds-claim ds-is-linked\" tabindex=\"0\">Employees accrue 1.5 vacation days per month.<a class=\"ds-cite ds-is-linked\" href=\"#\">1</a></li><li class=\"ds-claim\" tabindex=\"0\">Unused days roll over once.<a class=\"ds-cite\" href=\"#\">2</a></li></ol><div class=\"ds-source ds-is-linked\" tabindex=\"0\"><div class=\"ds-source-head\"><span class=\"ds-source-num\">1</span><div><span class=\"ds-source-title\">Vacation policy</span><p class=\"ds-source-meta\">google_drive · v4 · p. 2</p></div></div><p class=\"ds-source-excerpt\">Full-time employees accrue 1.5 days of paid vacation for each month of service.</p></div></div>",
+      "css": ".ds-ev { display: grid; grid-template-columns: 3fr 2fr; gap: 1.5rem; font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; color: var(--text); font-size: 0.9375rem; } .ds-claims { list-style: decimal; margin: 0; padding: 0 0 0 1.25rem; display: grid; gap: 0.25rem; } .ds-claim { border-radius: 10px; padding: 0.5rem 0.625rem; margin: 0 -0.625rem; line-height: 1.625; transition: background-color 180ms var(--ease); } .ds-claim:hover, .ds-claim:focus-visible, .ds-claim.ds-is-linked { background: var(--accent-soft); outline: none; } .ds-cite { display: inline-flex; align-items: center; justify-content: center; min-width: 1.25rem; height: 1.25rem; padding: 0 0.3rem; margin-left: 0.15rem; border-radius: 6px; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 0.6875rem; font-weight: 500; color: var(--accent); background: var(--accent-soft); text-decoration: none; vertical-align: 0.15em; transition: background-color 180ms var(--ease), color 180ms var(--ease); } .ds-cite:hover, .ds-cite.ds-is-linked, .ds-claim:hover .ds-cite { background: var(--accent); color: var(--accent-fg); } .ds-source { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius, 14px); box-shadow: var(--shadow); padding: 0.75rem; font-size: 0.875rem; align-self: start; transition: box-shadow 180ms var(--ease), transform 180ms var(--ease), border-color 180ms var(--ease); } .ds-source:hover, .ds-source:focus-visible, .ds-source.ds-is-linked { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-raised); transform: translateY(-1px); } .ds-source-head { display: flex; align-items: flex-start; gap: 0.5rem; } .ds-source-num { display: inline-flex; align-items: center; justify-content: center; width: 1.375rem; height: 1.375rem; border-radius: 6px; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 0.6875rem; font-weight: 500; color: var(--accent); background: var(--accent-soft); flex: none; } .ds-source-title { font-weight: 500; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; } .ds-source-meta { margin: 0.125rem 0 0; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 0.75rem; letter-spacing: -0.01em; color: var(--text-3); } .ds-source-excerpt { margin: 0.5rem 0 0; font-size: 0.8125rem; line-height: 1.625; color: var(--text-2); } @media (prefers-reduced-motion: reduce) { .ds-claim, .ds-cite, .ds-source { transition-duration: 0.01ms; } }"
+    },
+    {
+      "name": "Unsupported Box",
+      "kind": "custom",
+      "refersTo": "unsupported",
+      "description": "Statements without evidence sit in a dashed, unshadowed box with a red small heading. Never a pill, never a chip.",
+      "html": "<section class=\"ds-unsupported\"><h3>Statements without supporting evidence</h3><p class=\"ds-unsupported-note\">The model produced these without a passage behind them. They are not findings.</p><ul><li>The policy was last revised in 2021.</li></ul></section>",
+      "css": ".ds-unsupported { border: 1px dashed var(--line-strong); border-radius: var(--radius, 14px); background: transparent; padding: 1rem; font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; color: var(--text); } .ds-unsupported h3 { margin: 0 0 0.25rem; font-size: 0.875rem; font-weight: 600; color: var(--bad); } .ds-unsupported-note { margin: 0 0 0.5rem; font-size: 0.75rem; color: var(--text-3); } .ds-unsupported ul { margin: 0; padding-left: 1.25rem; font-size: 0.875rem; color: var(--text-2); }"
+    },
+    {
+      "name": "Top Bar",
+      "kind": "nav",
+      "refersTo": "top-bar",
+      "description": "Floating glass bar inset 16px from the top with pill nav links; the current page takes the accent soft fill.",
+      "html": "<nav class=\"ds-topbar\" aria-label=\"Main\"><a class=\"ds-brand\" href=\"#\"><svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='M4 6.5A2.5 2.5 0 0 1 6.5 4H20v14H6.5A2.5 2.5 0 0 0 4 20.5z'/><path d='M4 18.5A2.5 2.5 0 0 1 6.5 16H20'/><path d='M9 8h7M9 11.5h5'/></svg><span>Knowledgebase</span><span class=\"ds-brand-sep\">/</span><span class=\"ds-brand-org\">Acme</span></a><ul class=\"ds-nav\"><li><a class=\"ds-nav-link\" href=\"#\" aria-current=\"page\">Home</a></li><li><a class=\"ds-nav-link\" href=\"#\">Search</a></li><li><a class=\"ds-nav-link\" href=\"#\">Investigations</a></li><li><a class=\"ds-nav-link\" href=\"#\">Decisions</a></li></ul></nav>",
+      "css": ".ds-topbar { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 1rem; background: var(--glass); backdrop-filter: saturate(160%) blur(18px); -webkit-backdrop-filter: saturate(160%) blur(18px); border: 1px solid var(--line); box-shadow: var(--shadow); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; color: var(--text); } .ds-brand { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem; border-radius: 999px; font-weight: 600; letter-spacing: -0.025em; color: inherit; text-decoration: none; } .ds-brand-sep { color: var(--text-3); } .ds-brand-org { font-weight: 500; color: var(--text-2); } .ds-nav { display: flex; align-items: center; gap: 0.25rem; margin: 0 0 0 0.75rem; padding: 0; list-style: none; } .ds-nav-link { display: inline-flex; align-items: center; height: 2rem; padding: 0 0.75rem; border-radius: 999px; font-size: 0.875rem; font-weight: 500; color: var(--text-2); text-decoration: none; transition: color 180ms var(--ease), background-color 180ms var(--ease); } .ds-nav-link:hover { color: var(--text); background: var(--surface-2); } .ds-nav-link[aria-current=\"page\"] { color: var(--text); background: var(--accent-soft); } .ds-nav-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+    },
+    {
+      "name": "Data Table",
+      "kind": "custom",
+      "refersTo": "table-cell",
+      "description": "Dense 13px table inside a card: label-type headers in tertiary ink, hairline rules, tabular numerals, right-aligned numeric columns, mono ids.",
+      "html": "<div class=\"ds-tablewrap\"><table class=\"ds-table\"><thead><tr><th>Started</th><th>Question</th><th>Status</th><th class=\"ds-num\">Pages</th></tr></thead><tbody><tr><td class=\"ds-faint\">2026-10-17 09:12</td><td>Why did we change our hosting provider?</td><td><span class=\"ds-pill ds-pill-ok\">Completed</span></td><td class=\"ds-num\">14</td></tr><tr><td class=\"ds-faint\">2026-10-16 18:40</td><td>What is the onboarding checklist?</td><td><span class=\"ds-pill ds-pill-bad\">Failed</span></td><td class=\"ds-num\">3</td></tr></tbody></table></div>",
+      "css": ".ds-tablewrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius, 14px); box-shadow: var(--shadow); overflow: hidden; font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; color: var(--text); } .ds-table { width: 100%; font-size: 0.8125rem; border-collapse: separate; border-spacing: 0; } .ds-table th { text-align: left; font-weight: 500; font-size: 0.75rem; color: var(--text-3); padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); white-space: nowrap; } .ds-table td { padding: 0.625rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; font-variant-numeric: tabular-nums; } .ds-table tbody tr:last-child td { border-bottom: 0; } .ds-table tbody tr { transition: background-color 150ms var(--ease); } .ds-table tbody tr:hover { background: var(--surface-2); } .ds-num { text-align: right; } .ds-faint { color: var(--text-3); } .ds-pill { display: inline-flex; align-items: center; gap: 0.375rem; height: 1.375rem; padding: 0 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500; line-height: 1; white-space: nowrap; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--line); } .ds-pill::before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: 0.8; } .ds-pill-ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; } .ds-pill-bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Evidence Is the Interface",
+    "overview": "Knowledgebase is a calm, dense operator surface for a team that asks questions mid-task. Every claim on screen carries a numbered citation chip, and the claim and its source card light each other up on hover or focus. The world borrows the register of premium product UI (Linear, Apple): Geist everywhere, a cool silver or near-black ground, white or graphite work surfaces, hairline borders, one soft layered shadow, and a single ink-blue accent that is spent only on primary actions, selection, and the running state.\n\nDensity is high but quiet. Tables, status pills, and timelines carry many items without decoration, and state names (Grounded, Candidate, Verified, Running, Withheld) are the loudest words on most screens. The build refuses the flat results list with footnote links, refuses the chat-transcript layout, and never styles an unsupported statement as a finding: it sits in its own dashed-border box, named as unsupported.\n\nLight and dark are two full token sets switched by `data-theme` on `<html>` before first paint. The default follows the system, the toggle in the top bar stores the choice in `localStorage`, and `color-scheme` follows the theme so form controls and scrollbars match.",
+    "keyCharacteristics": [
+      "Claims and sources are linked both ways by data attributes and one small script; hover or focus on either side lights the pair.",
+      "One accent, four state colors, and alpha-tinted soft variants for backgrounds; everything else is a neutral.",
+      "Geist Mono appears only on identifiers, labels, counts, and citation numbers; numerals in data are tabular.",
+      "Hairline borders at 8% and 16% alpha, one soft two-layer shadow for raised surfaces, no hard offset shadows.",
+      "Pills (999px) on every control and status; 10 to 16px radii on fields, cards, and the top bar.",
+      "Icons are inline SVG at 1.5 stroke (1.75 on the primary button arrow), 16 to 20px."
+    ],
+    "rules": [
+      {
+        "name": "The One Ink Rule",
+        "body": "The accent is the only chromatic color that is not a state. It marks what the member can act on or what is lit right now; it never decorates.",
+        "section": "colors"
+      },
+      {
+        "name": "The Soft Tint Rule",
+        "body": "A state or accent hue fills a background only through its `-soft` alpha variant, with the full hue as the text or dot on top. Filled pills and chips drop their border (`border-color: transparent`).",
+        "section": "colors"
+      },
+      {
+        "name": "The Named State Rule",
+        "body": "Green, amber, red, and slate always mean verified or healthy, candidate or pending, withheld or failed, and inactive. A new status takes the color of its meaning, not a new hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Boundary Rule",
+        "body": "Geist Mono is for identifiers, labels of record (version, source type), counts, and citation numbers. Sentences are always Geist.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Numeral Rule",
+        "body": "Any number in a data position (table cell, count, timestamp, attempt, percentage) sets `font-variant-numeric: tabular-nums`, through `.tabular`, `code`, `kbd`, or table cells.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sentence Case Rule",
+        "body": "No uppercase labels, no letter-spaced kickers or eyebrows. Labels are small, medium weight, tertiary ink, sentence case.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Shadow Rule",
+        "body": "Two layers, low alpha, downward. Raised is the same shape at a larger spread; nothing else casts a shadow, and no shadow has a hard edge.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Lift Is a State Rule",
+        "body": "A surface rises only when it is the primary surface (ask box, login) or when it is lit by hover or focus. A lit source lifts 1px (`translateY(-1px)`) with a 3px accent halo over the Raised shadow, in 180ms.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** attach a numbered `.cite` chip to every claim and give it a matching `.source` card with `data-ev` and `data-ev-id`; a claim without a passage goes in the dashed `.unsupported` box, never in the answer list.",
+      "**Do** spend the accent only on primary actions, the selected or current item, the lit evidence pair, focus, and the Running state.",
+      "**Do** set states through the four pill variants with their fixed meanings (green verified or healthy, amber candidate or pending, red withheld or failed, slate inactive) and reuse the exact words already on screen.",
+      "**Do** use Geist Mono and tabular numerals for ids, version lines, counts, timestamps, and numeric table columns.",
+      "**Do** keep every control a pill and every container a 10 to 16px soft rectangle; cards are 14px.",
+      "**Do** build icons as inline SVG at 1.5 stroke, round caps and joins, 16 to 20px, `aria-hidden`.",
+      "**Do** transition state over 180ms on `cubic-bezier(0.32, 0.72, 0, 1)` and let the reduced-motion rule collapse it.",
+      "**Do** write both token sets: any new color is added to `:root` and `[data-theme=\"dark\"]` and mapped in `@theme inline`."
+    ],
+    "donts": [
+      "**Don't** render an answer as a flat results list with footnote links or as a chat transcript; claims left, sources right, linked both ways.",
+      "**Don't** style an unsupported statement with a pill, a card shadow, or a citation chip.",
+      "**Don't** add a second accent hue, a gradient, or a hard offset shadow; the Soft and Raised shadows are the whole vocabulary.",
+      "**Don't** set labels, kickers, or table headers in uppercase or letter-spaced type, and do not add an eyebrow above a headline.",
+      "**Don't** use Geist Mono for sentences, or a system display face anywhere.",
+      "**Don't** add a border and a tinted fill at the same time on a pill or chip; a tinted fill means `border-color: transparent`.",
+      "**Don't** use type larger than the 24px headline; this is an operator surface, not a landing page."
+    ]
+  }
+}

@@ -2,10 +2,30 @@
 {% load org_tags %}
 {% block title %}Decisions · {{ organization.name }}{% endblock %}
 {% block content %}
-<h1 class="mb-3 text-xl font-semibold">Decision history</h1>
-<p class="mb-4 text-sm text-slate-600">Records are visible only when every supporting passage is visible to you. Candidates come from the agent or extraction and become authoritative only after a steward verifies them.</p>
-{% if is_steward and pending %}<p class="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm">{{ pending|length }} record(s) await review.</p>{% endif %}
-<table class="w-full text-sm"><thead><tr class="text-left"><th>Title</th><th>Date</th><th>Status</th><th>Approval</th><th>Origin</th></tr></thead><tbody>
-{% for r in records %}<tr class="border-t"><td class="py-1"><a class="underline" href="{% org_url 'web:decision_detail' r.id %}">{{ r.title }}</a>{% if r.superseded_by_id %} <span class="text-slate-500">(superseded)</span>{% endif %}</td><td>{{ r.decision_date|default:"unknown" }}</td><td>{{ r.status }}</td><td>{{ r.approval_status }}</td><td>{{ r.origin }}</td></tr>{% empty %}<tr><td colspan="5">No decision records visible to you.</td></tr>{% endfor %}
-</tbody></table>
+<h1 class="h1 mb-1">Decision history</h1>
+<p class="muted mb-5 max-w-2xl">A record is visible only when every passage behind it is visible to you. Candidates come from the agent or from extraction and become authoritative when a steward verifies them.</p>
+{% if is_steward and pending %}
+<div class="card mb-5 flex items-center gap-3 border-warn/30 px-4 py-3 text-sm">
+  <span class="pill pill-warn">{{ pending|length }} pending</span>
+  <span class="muted">record{{ pending|length|pluralize }} await your review.</span>
+</div>
+{% endif %}
+<div class="card overflow-hidden">
+  <table class="table">
+    <thead><tr><th>Title</th><th class="w-32">Date</th><th class="w-32">Status</th><th class="w-36">Approval</th><th class="w-28">Origin</th></tr></thead>
+    <tbody>
+    {% for r in records %}
+      <tr>
+        <td><a class="link font-medium" href="{% org_url 'web:decision_detail' r.id %}">{{ r.title }}</a>{% if r.superseded_by_id %} <span class="faint text-xs">superseded</span>{% endif %}</td>
+        <td class="faint tabular">{{ r.decision_date|default:"unknown" }}</td>
+        <td>{% if r.status == 'verified' %}<span class="pill pill-ok">Verified</span>{% elif r.status == 'candidate' %}<span class="pill pill-warn">Candidate</span>{% elif r.status == 'draft' %}<span class="pill pill-info">Draft</span>{% else %}<span class="pill">{{ r.status|capfirst }}</span>{% endif %}</td>
+        <td class="muted">{{ r.approval_status }}</td>
+        <td class="muted">{{ r.origin }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" class="faint py-10 text-center">No decision records visible to you yet. Save passages from an answer as a candidate, or let an investigation draft one.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

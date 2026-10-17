@@ -2,8 +2,8 @@
 {% load org_tags %}
 {% block title %}Investigation · {{ organization.name }}{% endblock %}
 {% block content %}
-<h1 class="mb-1 text-xl font-semibold">Investigation</h1>
-<p class="mb-4 text-slate-700">{{ inv.question }}</p>
+<nav class="mb-3 text-sm" aria-label="Breadcrumb"><a class="link" href="{% org_url 'web:investigations' %}">Investigations</a></nav>
+<h1 class="h1 mb-6 max-w-3xl">{{ inv.question }}</h1>
 <div id="status" {% if not terminal %}hx-get="{% org_url 'web:investigation_detail' inv.id %}" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
   {% include "investigations/_status.html" %}
 </div>

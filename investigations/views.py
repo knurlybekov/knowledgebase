@@ -38,11 +38,24 @@ def investigations_start(request):
     return redirect(org_path(request.organization, f"/investigations/{row.id}/"))
 
 
+def _number_evidence(data: dict) -> None:
+    """Presentation only: number the cited passages and list, per statement, the
+    numbers it cites, so the template can draw matching chips."""
+    result = data.get("result") or {}
+    index = {c["evidence_id"]: n for n, c in enumerate(result.get("citations", []), start=1)}
+    for st in result.get("statements", []):
+        st["refs"] = sorted({index[e] for e in st.get("evidence_ids", []) if e in index})
+    used = int(data.get("tool_calls_used") or 0)
+    limit = int((data.get("limits") or {}).get("max_tool_calls") or 0)
+    data["tool_calls_pct"] = min(100, round(100 * used / limit)) if limit else 0
+
+
 @login_required
 def investigation_detail(request, investigation_id):
     data = get_investigation(request.principal, investigation_id)
     if data is None:
         raise Http404("Unknown investigation")
+    _number_evidence(data)
     template = (
         "investigations/_status.html"
         if request.headers.get("HX-Request")
@@ -67,6 +80,7 @@ def investigation_cancel(request, investigation_id):
     cancelled = cancel_investigation(request.principal, investigation_id)
     if request.headers.get("HX-Request"):
         data = get_investigation(request.principal, investigation_id)
+        _number_evidence(data)
         return render(request, "investigations/_status.html", {"inv": data, "terminal": True})
     return (
         redirect(org_path(request.organization, f"/investigations/{investigation_id}/"))

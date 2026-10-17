@@ -2,32 +2,41 @@
 {% load org_tags %}
 {% block title %}Connected accounts · {{ organization.name }}{% endblock %}
 {% block content %}
-<h1 class="mb-2 text-xl font-semibold">Connected accounts</h1>
-<p class="mb-4 text-sm text-slate-600">The platform indexes what your linked account can see. Other members see a document only when their own account can see it. Access is revalidated at least every 12 hours.</p>
-<div class="mb-6 flex gap-3">
-  {% if google_configured %}<a class="rounded border bg-white px-3 py-1.5" href="{% url 'connectors:google_start' organization.slug %}">Link Google Drive</a>{% else %}<span class="rounded border bg-slate-100 px-3 py-1.5 text-slate-500">Google Drive not configured</span>{% endif %}
-  {% if microsoft_configured %}<a class="rounded border bg-white px-3 py-1.5" href="{% url 'connectors:microsoft_start' organization.slug %}">Link SharePoint</a>{% else %}<span class="rounded border bg-slate-100 px-3 py-1.5 text-slate-500">SharePoint not configured</span>{% endif %}
+<div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="h1 mb-1">Connected accounts</h1>
+    <p class="muted max-w-2xl">The platform indexes what your linked account can see. Other members see a document only when their own account can see it. Access is revalidated at least every 12 hours.</p>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    {% if google_configured %}<a class="btn" href="{% url 'connectors:google_start' organization.slug %}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Link Google Drive</a>{% else %}<span class="btn" aria-disabled="true" style="opacity:.5">Google Drive not configured</span>{% endif %}
+    {% if microsoft_configured %}<a class="btn" href="{% url 'connectors:microsoft_start' organization.slug %}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Link Microsoft</a>{% else %}<span class="btn" aria-disabled="true" style="opacity:.5">Microsoft not configured</span>{% endif %}
+  </div>
 </div>
 {% if links %}
-<table class="w-full text-sm">
-  <thead><tr class="text-left"><th class="py-1">Provider</th><th>Account</th><th>Status</th><th>Scopes</th><th>Last sync</th><th></th></tr></thead>
-  <tbody>
-  {% for link in links %}
-    {% with run=runs|get_item:link.id %}
-    <tr class="border-t">
-      <td class="py-2">{{ link.get_provider_display }}</td>
-      <td>{{ link.email }}</td>
-      <td>{{ link.status }}{% if link.last_error_code %} <span class="text-red-700">({{ link.last_error_code }})</span>{% endif %}</td>
-      <td>{% for s in scopes|get_item:link.id %}<div>{{ s.display_name|default:s.kind }}{% if s.last_ok_at %} · ok {{ s.last_ok_at|timesince }} ago{% endif %}</div>{% empty %}<a class="underline" href="{% org_url 'web:connector_select' link.id %}">Select libraries</a>{% endfor %}</td>
-      <td>{% if run %}{{ run.kind }} · {{ run.status }}{% if run.error_code %} ({{ run.error_code }}){% endif %}{% else %}never{% endif %}</td>
-      <td class="whitespace-nowrap">
-        <form class="inline" method="post" action="{% org_url 'web:connector_sync' link.id %}">{% csrf_token %}<button class="underline" type="submit">Sync now</button></form>
-        · <form class="inline" method="post" action="{% org_url 'web:connector_unlink' link.id %}">{% csrf_token %}<button class="underline text-red-700" type="submit">Unlink</button></form>
-      </td>
-    </tr>
-    {% endwith %}
-  {% endfor %}
-  </tbody>
-</table>
-{% else %}<p>No linked accounts yet.</p>{% endif %}
+<div class="card overflow-hidden">
+  <table class="table">
+    <thead><tr><th>Provider</th><th>Account</th><th>Status</th><th>Scopes</th><th>Last sync</th><th class="w-44"></th></tr></thead>
+    <tbody>
+    {% for link in links %}{% with run=runs|get_item:link.id %}
+      <tr>
+        <td class="font-medium">{{ link.get_provider_display }}</td>
+        <td class="muted">{{ link.email }}</td>
+        <td>{% if link.status == 'active' %}<span class="pill pill-ok">Active</span>{% elif link.status == 'error' %}<span class="pill pill-bad">Error</span>{% else %}<span class="pill">{{ link.status|capfirst }}</span>{% endif %}{% if link.last_error_code %}<div class="mono mt-1 text-bad">{{ link.last_error_code }}</div>{% endif %}</td>
+        <td>{% for s in scopes|get_item:link.id %}<div class="whitespace-nowrap">{{ s.display_name|default:s.kind }}{% if s.last_ok_at %} <span class="faint">· ok {{ s.last_ok_at|timesince }} ago</span>{% endif %}</div>{% empty %}<a class="link" href="{% org_url 'web:connector_select' link.id %}">Select libraries</a>{% endfor %}</td>
+        <td class="muted whitespace-nowrap">{% if run %}{{ run.kind }} · {{ run.status }}{% if run.error_code %} <span class="text-bad">({{ run.error_code }})</span>{% endif %}{% else %}never{% endif %}</td>
+        <td class="whitespace-nowrap text-right">
+          <form class="inline" method="post" action="{% org_url 'web:connector_sync' link.id %}">{% csrf_token %}<button class="btn btn-sm" type="submit">Sync now</button></form>
+          <form class="inline" method="post" action="{% org_url 'web:connector_unlink' link.id %}">{% csrf_token %}<button class="btn btn-sm btn-ghost btn-danger" type="submit">Unlink</button></form>
+        </td>
+      </tr>
+    {% endwith %}{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card px-6 py-12 text-center">
+  <p class="font-medium">No linked accounts yet</p>
+  <p class="muted mx-auto mt-1 max-w-md text-sm">Link an account above. The first sync lists everything the account can see and indexes the supported document types.</p>
+</div>
+{% endif %}
 {% endblock %}

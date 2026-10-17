@@ -2,29 +2,59 @@
 {% load org_tags %}
 {% block title %}{{ record.title }} · {{ organization.name }}{% endblock %}
 {% block content %}
-<h1 class="mb-1 text-xl font-semibold">{{ record.title }}</h1>
-<p class="mb-4 text-sm text-slate-600">Status <strong>{{ record.status }}</strong> · approval {{ record.approval_status }} · origin {{ record.origin }} · date {{ record.decision_date|default:"unknown" }}{% if record.verified_by %} · verified by {{ record.verified_by.email }} on {{ record.verified_at|date:"Y-m-d" }}{% endif %}</p>
-{% if record.description %}<p class="mb-4">{{ record.description }}</p>{% endif %}
-{% if superseded_by %}<p class="mb-4 text-sm">Superseded by <a class="underline" href="{% org_url 'web:decision_detail' superseded_by.id %}">{{ superseded_by.title }}</a>.</p>{% elif record.superseded_by_id %}<p class="mb-4 text-sm text-slate-500">Superseded by a record you cannot see.</p>{% endif %}
+<nav class="mb-3 text-sm" aria-label="Breadcrumb"><a class="link" href="{% org_url 'web:decisions' %}">Decisions</a></nav>
+<div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+  <div class="min-w-0">
+    <h1 class="h1 mb-2">{{ record.title }}</h1>
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      {% if record.status == 'verified' %}<span class="pill pill-ok">Verified</span>{% elif record.status == 'candidate' %}<span class="pill pill-warn">Candidate</span>{% elif record.status == 'draft' %}<span class="pill pill-info">Draft</span>{% else %}<span class="pill">{{ record.status|capfirst }}</span>{% endif %}
+      <span class="faint">approval {{ record.approval_status }}</span>
+      <span class="faint">· origin {{ record.origin }}</span>
+      <span class="faint tabular">· {{ record.decision_date|default:"date unknown" }}</span>
+      {% if record.verified_by %}<span class="faint">· verified by {{ record.verified_by.email }} on {{ record.verified_at|date:"Y-m-d" }}</span>{% endif %}
+    </div>
+  </div>
+  {% if is_steward %}
+  <form method="post" action="{% org_url 'web:decision_transition' record.id %}" class="flex flex-wrap items-center gap-2">
+    {% csrf_token %}
+    {% if record.status == 'candidate' %}<button class="btn btn-primary" name="to" value="draft">Accept as draft</button>{% endif %}
+    {% if record.status == 'draft' %}<button class="btn btn-primary" name="to" value="verified">Verify</button><button class="btn" name="to" value="candidate">Send back</button>{% endif %}
+    {% if record.status == 'verified' %}<label class="flex items-center gap-2 text-sm"><span class="faint">Superseded by</span><select name="superseded_by" class="field h-9 w-56">{% for s in superseders %}<option value="{{ s.id }}">{{ s.title }}</option>{% endfor %}</select></label><button class="btn" name="to" value="superseded">Mark superseded</button>{% endif %}
+  </form>
+  {% endif %}
+</div>
 
-<h2 class="mb-2 font-semibold">Timeline</h2>
-<ol class="mb-6 space-y-3">
-{% for stage, data in stages %}
-  <li class="rounded border bg-white p-3">
-    <div class="flex justify-between"><span class="font-medium capitalize">{{ stage }}</span><span class="text-xs {% if data.state == 'unknown' %}text-amber-700{% else %}text-slate-500{% endif %}">{{ data.state }}</span></div>
-    {% for item in data.items %}<blockquote class="mt-2 border-l-2 pl-3 text-sm text-slate-700">{{ item.excerpt|default:"(excerpt purged)" }}{% if item.title %}<footer class="text-xs text-slate-500">{{ item.title }} · {{ item.version_label }}</footer>{% endif %}</blockquote>{% empty %}<p class="mt-1 text-sm text-slate-500">The evidence does not establish this stage.</p>{% endfor %}
-  </li>
-{% endfor %}
-</ol>
-{% if record.alternatives %}<h2 class="mb-2 font-semibold">Alternatives recorded</h2><ul class="mb-6 list-disc pl-5 text-sm">{% for a in record.alternatives %}<li>{{ a.text|default:a }}</li>{% endfor %}</ul>{% endif %}
+{% if record.description %}<p class="muted mb-6 max-w-3xl leading-relaxed">{{ record.description }}</p>{% endif %}
+{% if superseded_by %}<p class="card mb-6 px-4 py-3 text-sm">Superseded by <a class="link font-medium" href="{% org_url 'web:decision_detail' superseded_by.id %}">{{ superseded_by.title }}</a>.</p>{% elif record.superseded_by_id %}<p class="card mb-6 px-4 py-3 text-sm faint">Superseded by a record you cannot see.</p>{% endif %}
 
-{% if is_steward %}
-<h2 class="mb-2 font-semibold">Steward actions</h2>
-<form method="post" action="{% org_url 'web:decision_transition' record.id %}" class="flex flex-wrap items-center gap-2 text-sm">
-  {% csrf_token %}
-  {% if record.status == 'candidate' %}<button class="rounded border bg-white px-3 py-1" name="to" value="draft">Accept as draft</button>{% endif %}
-  {% if record.status == 'draft' %}<button class="rounded bg-slate-900 px-3 py-1 text-white" name="to" value="verified">Verify</button><button class="rounded border bg-white px-3 py-1" name="to" value="candidate">Send back</button>{% endif %}
-  {% if record.status == 'verified' %}<label>Superseded by <select name="superseded_by" class="rounded border px-2 py-1">{% for s in superseders %}<option value="{{ s.id }}">{{ s.title }}</option>{% endfor %}</select></label><button class="rounded border bg-white px-3 py-1" name="to" value="superseded">Mark superseded</button>{% endif %}
-</form>
-{% endif %}
+<div class="grid gap-6 lg:grid-cols-5">
+  <section class="lg:col-span-3" aria-labelledby="timeline-h">
+    <h2 id="timeline-h" class="label mb-3">Timeline from the evidence</h2>
+    <ol class="rail space-y-5">
+    {% for stage, data in stages %}
+      <li class="relative">
+        <span class="rail-dot {% if data.state == 'unknown' %}is-unknown{% else %}is-known{% endif %}"></span>
+        <div class="flex items-baseline justify-between gap-3">
+          <h3 class="font-medium capitalize">{{ stage }}</h3>
+          <span class="text-xs {% if data.state == 'unknown' %}text-warn{% else %}faint{% endif %}">{{ data.state }}</span>
+        </div>
+        {% for item in data.items %}
+        <blockquote class="card mt-2 p-3 text-sm">
+          <p class="muted leading-relaxed">{{ item.excerpt|default:"(excerpt purged)" }}</p>
+          {% if item.title %}<footer class="faint mono mt-2 truncate">{{ item.title }} · {{ item.version_label }}</footer>{% endif %}
+        </blockquote>
+        {% empty %}<p class="faint mt-1 text-sm">The evidence does not establish this stage.</p>{% endfor %}
+      </li>
+    {% endfor %}
+    </ol>
+  </section>
+  <aside class="lg:col-span-2">
+    {% if record.alternatives %}
+    <section class="card p-4" aria-labelledby="alt-h">
+      <h2 id="alt-h" class="mb-2 text-sm font-semibold">Alternatives recorded</h2>
+      <ul class="muted space-y-1.5 text-sm">{% for a in record.alternatives %}<li class="flex gap-2"><span class="mt-2 h-1 w-1 flex-none rounded-full bg-ink-3"></span><span>{{ a.text|default:a }}</span></li>{% endfor %}</ul>
+    </section>
+    {% endif %}
+  </aside>
+</div>
 {% endblock %}

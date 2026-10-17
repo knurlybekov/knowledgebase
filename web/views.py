@@ -7,6 +7,11 @@ from django.shortcuts import redirect, render
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from answers.api import answer_question, read_answer
+from connectors.api import ConnectorLink, SyncRun
+from decisions.api import pending_approval_count
+from infra.api import with_org
+from investigations.api import Investigation
+from knowledge.api import visible_documents
 from organizations.api import memberships_for_user, org_path
 
 from .api import rate_limited
@@ -28,11 +33,51 @@ def metrics(request):
 @login_required
 def home(request):
     if request.organization is not None:
-        return render(request, "web/dashboard.html")
+        return render(request, "web/dashboard.html", _dashboard_context(request))
     memberships = memberships_for_user(request.user)
     if len(memberships) == 1:
         return redirect(org_path(memberships[0].organization, "/"))
     return render(request, "web/picker.html", {"memberships": memberships})
+
+
+def _dashboard_context(request) -> dict:
+    """Read-only data for the home page: the member's recent investigations,
+    their linked accounts with the last sync, and the steward's pending count."""
+    organization = request.organization
+    with with_org(organization.id, request.user.pk):
+        recent = list(Investigation.objects.filter(user=request.user).order_by("-created_at")[:6])
+        links = list(
+            ConnectorLink.objects.filter(user=request.user)
+            .exclude(status=ConnectorLink.STATUS_REVOKED)
+            .order_by("provider")
+        )
+        runs = {
+            link.id: SyncRun.objects.filter(link=link).order_by("-started_at").first()
+            for link in links
+        }
+        documents = visible_documents(request.principal).count()
+        pending = (
+            pending_approval_count(organization.id)
+            if request.membership.role in ("steward", "admin")
+            else None
+        )
+    return {
+        "recent": recent,
+        "links": links,
+        "runs": runs,
+        "documents": documents,
+        "pending": pending,
+        "hermes_enabled": settings.HERMES_ENABLED,
+    }
+
+
+def _number_citations(answer) -> None:
+    """Presentation only: give each retrieved passage a number and list the
+    numbers each claim cites, so the template can draw matching chips."""
+    index = {c.chunk_id: n for n, c in enumerate(answer.citations, start=1)}
+    for claim in answer.claims:
+        refs = sorted({index[c["chunk_id"]] for c in claim["citations"] if c["chunk_id"] in index})
+        claim["refs"] = refs
 
 
 @login_required
@@ -73,6 +118,8 @@ def search_page(request):
 
             investigation = start_investigation(request.principal, question)
             return redirect(org_path(request.organization, f"/investigations/{investigation.id}/"))
+    if context["answer"] is not None:
+        _number_citations(context["answer"])
     return render(request, "web/search.html", context)
 
 
@@ -83,6 +130,7 @@ def answer_detail(request, answer_id):
         from django.http import Http404
 
         raise Http404("Unknown answer")
+    _number_citations(result)
     return render(
         request,
         "web/search.html",

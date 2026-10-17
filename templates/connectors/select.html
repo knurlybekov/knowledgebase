@@ -2,20 +2,28 @@
 {% load org_tags %}
 {% block title %}Select libraries · {{ organization.name }}{% endblock %}
 {% block content %}
-<h1 class="mb-2 text-xl font-semibold">Select SharePoint libraries</h1>
-<p class="mb-4 text-sm text-slate-600">Only the libraries you select here are indexed, as your account sees them.</p>
-{% if sites_error %}<p class="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{{ sites_error }}</p>{% endif %}
-<form method="get" class="mb-4 flex gap-2">
-  <input class="w-96 rounded border px-2 py-1" type="text" name="q" value="{{ query }}" placeholder="Search sites or paste a site URL">
-  <button class="rounded border bg-white px-3 py-1" type="submit">Find</button>
+<nav class="mb-3 text-sm" aria-label="Breadcrumb"><a class="link" href="{% org_url 'web:connectors' %}">Connected accounts</a></nav>
+<h1 class="h1 mb-1">Select libraries</h1>
+<p class="muted mb-5 max-w-2xl">Only the libraries you select are indexed, as your account sees them.</p>
+{% if sites_error %}<p class="card mb-5 border-warn/30 px-4 py-3 text-sm text-warn">{{ sites_error }}</p>{% endif %}
+<form method="get" class="mb-5 flex flex-col gap-2 sm:flex-row">
+  <label class="sr-only" for="q">Search sites</label>
+  <input id="q" class="field flex-1" type="text" name="q" value="{{ query }}" placeholder="Search sites or paste a site URL">
+  <button class="btn shrink-0" type="submit">Find</button>
 </form>
-<form method="post">
+<form method="post" class="card p-2">
   {% csrf_token %}
-  <ul class="space-y-1">
+  <ul class="divide-y divide-line">
   {% for o in options %}
-    <li><label class="flex items-center gap-2"><input type="checkbox" name="drive" value="{{ o.drive_id }}"><input type="hidden" name="drive_name" value="{{ o.site }}{% if o.site %} / {% endif %}{{ o.name }}">{{ o.site }}{% if o.site %} / {% endif %}{{ o.name }}</label></li>
+    <li>
+      <label class="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-3 transition-colors duration-150 ease-spring hover:bg-surface-2">
+        <input class="h-4 w-4 accent-accent" type="checkbox" name="drive" value="{{ o.drive_id }}">
+        <input type="hidden" name="drive_name" value="{{ o.site }}{% if o.site %} / {% endif %}{{ o.name }}">
+        <span class="min-w-0"><span class="block font-medium">{{ o.name }}</span>{% if o.site %}<span class="faint block text-xs">{{ o.site }}</span>{% endif %}</span>
+      </label>
+    </li>
   {% endfor %}
   </ul>
-  <button class="mt-4 rounded bg-slate-900 px-3 py-1.5 text-white" type="submit">Index selected libraries</button>
+  <div class="divider mt-2 flex justify-end px-3 pt-3 pb-1"><button class="btn btn-primary" type="submit">Index selected libraries</button></div>
 </form>
 {% endblock %}

@@ -45,3 +45,9 @@ htmlcov/
 # Hermes source clone and scratch files (never part of the repository)
 hermes-src/
 scratch/
+
+# Design review captures and browser scratch (regenerated per session)
+.impeccable/review/
+.impeccable/hook.cache.json
+.impeccable/live/
+.playwright-mcp/

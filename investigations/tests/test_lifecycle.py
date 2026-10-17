@@ -277,7 +277,7 @@ def test_views_list_detail_json_and_cancel(monkeypatch, settings):
     started = c.post(f"/o/{org.slug}/investigations/start/", {"q": "why did hosting change"})
     assert started.status_code == 302
     detail = c.get(started["Location"])
-    assert detail.status_code == 200 and b"queued" in detail.content
+    assert detail.status_code == 200 and b"Queued" in detail.content
     inv_id = started["Location"].rstrip("/").rsplit("/", 1)[1]
     assert c.get(f"/o/{org.slug}/api/v1/investigations/{inv_id}").json()["status"] == "queued"
     frag = c.get(started["Location"], HTTP_HX_REQUEST="true")

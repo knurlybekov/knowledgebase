@@ -2,61 +2,95 @@
 {% load org_tags %}
 {% block title %}Search · {{ organization.name }}{% endblock %}
 {% block content %}
-<h1 class="mb-3 text-xl font-semibold">Search</h1>
-<form method="get" action="{% org_url 'web:search' %}" class="mb-6 space-y-3 rounded border bg-white p-4" role="search">
-  <label class="block text-sm font-medium" for="q">Question</label>
-  <input id="q" class="w-full rounded border px-3 py-2" type="text" name="q" value="{{ question }}" placeholder="What is our vacation policy?" required>
-  <fieldset class="flex flex-wrap items-center gap-4 text-sm">
-    <legend class="sr-only">Mode</legend>
-    <label class="flex items-center gap-1"><input type="radio" name="mode" value="quick" {% if mode == 'quick' %}checked{% endif %}> Quick Search</label>
-    <label class="flex items-center gap-1 {% if not hermes_enabled %}text-slate-400{% endif %}"><input type="radio" name="mode" value="deep" {% if mode == 'deep' %}checked{% endif %} {% if not hermes_enabled %}disabled{% endif %}> Deep Investigation{% if not hermes_enabled %} (off){% endif %}</label>
-    <span class="text-slate-500">Sources:</span>
-    <label class="flex items-center gap-1"><input type="checkbox" name="source" value="google_drive" {% if 'google_drive' in source_types %}checked{% endif %}> Google Drive</label>
-    <label class="flex items-center gap-1"><input type="checkbox" name="source" value="sharepoint" {% if 'sharepoint' in source_types %}checked{% endif %}> SharePoint</label>
-    <button class="rounded bg-slate-900 px-3 py-1.5 text-white" type="submit">Search</button>
-  </fieldset>
-  {% if suggested == 'deep' and mode == 'quick' and hermes_enabled %}<p class="text-sm text-slate-600">This looks like a why or history question. Deep Investigation can trace it across documents.</p>{% endif %}
-  {% if deep_disabled %}<p class="text-sm text-amber-700" role="status">Deep Investigation is disabled on this deployment. Quick Search ran instead.</p>{% endif %}
+<h1 class="h1 mb-5">Search</h1>
+<form method="get" action="{% org_url 'web:search' %}" class="card raised mb-8 p-3 sm:p-4" role="search">
+  <label class="sr-only" for="q">Question</label>
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <input id="q" class="field field-lg flex-1" type="text" name="q" value="{{ question }}" placeholder="What is our vacation policy?" required autocomplete="off">
+    <button class="btn btn-primary h-13 shrink-0 px-5" type="submit">Search
+      <span class="flex h-6 w-6 items-center justify-center rounded-full bg-white/15"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </button>
+  </div>
+  <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+    <fieldset class="seg"><legend class="sr-only">Mode</legend>
+      <label><input type="radio" name="mode" value="quick" {% if mode == 'quick' %}checked{% endif %}> Quick Search</label>
+      <label><input type="radio" name="mode" value="deep" {% if mode == 'deep' %}checked{% endif %} {% if not hermes_enabled %}disabled{% endif %}> Deep Investigation{% if not hermes_enabled %} (off){% endif %}</label>
+    </fieldset>
+    <fieldset class="flex items-center gap-2"><legend class="label mr-1 inline">Sources</legend>
+      <label class="chip"><input type="checkbox" name="source" value="google_drive" {% if 'google_drive' in source_types %}checked{% endif %}>Google Drive</label>
+      <label class="chip"><input type="checkbox" name="source" value="sharepoint" {% if 'sharepoint' in source_types %}checked{% endif %}>SharePoint</label>
+    </fieldset>
+  </div>
+  {% if suggested == 'deep' and mode == 'quick' and hermes_enabled %}<p class="muted mt-3 text-sm">This reads like a why or history question. Deep Investigation can trace it across documents.</p>{% endif %}
+  {% if deep_disabled %}<p class="mt-3 text-sm text-warn" role="status">Deep Investigation is disabled on this deployment. Quick Search ran instead.</p>{% endif %}
 </form>
 
 {% if answer %}
-<section aria-labelledby="answer-heading" class="mb-6 rounded border bg-white p-4">
-  <h2 id="answer-heading" class="mb-2 font-semibold">Answer</h2>
-  {% if answer.withheld %}
-    <p class="text-slate-700">{{ answer.summary }}</p>
-  {% elif answer.evidence_state == 'insufficient' %}
-    <p class="text-slate-700">{{ answer.summary }}</p>
-  {% else %}
-    <ol class="list-decimal space-y-2 pl-5">
-      {% for claim in answer.claims %}
-        <li>{{ claim.text }}
-          <span class="text-sm text-slate-500">{% for c in claim.citations %}<a class="underline" href="{{ c.source_url }}" rel="noopener" target="_blank">[{{ c.title|default:"source" }}{% if c.locator.page %}, p. {{ c.locator.page }}{% elif c.locator.slide %}, slide {{ c.locator.slide }}{% elif c.locator.sheet %}, sheet {{ c.locator.sheet }}{% endif %}]</a> {% endfor %}</span>
-        </li>
+<div class="mb-3 flex flex-wrap items-center gap-2">
+  <h2 id="answer-heading" class="h2 mr-2">Answer</h2>
+  {% if answer.withheld %}<span class="pill pill-bad">Withheld</span>
+  {% elif answer.evidence_state == 'insufficient' %}<span class="pill pill-warn">Insufficient evidence</span>
+  {% elif answer.evidence_state == 'conflicting' %}<span class="pill pill-warn">Conflicting evidence</span>
+  {% else %}<span class="pill pill-ok">Grounded</span>{% endif %}
+  <span class="faint text-xs tabular">{{ answer.retrieval_meta.retrieved|default:0 }} passages retrieved{% if answer.model_id %} · {{ answer.model_id }}{% endif %}</span>
+</div>
+
+{% if answer.withheld or answer.evidence_state == 'insufficient' %}
+<section aria-labelledby="answer-heading" class="card p-5"><p class="muted">{{ answer.summary }}</p></section>
+{% else %}
+<div class="grid gap-6 lg:grid-cols-5">
+  <section aria-labelledby="answer-heading" class="lg:col-span-3">
+    <div class="card p-5">
+      <ol class="space-y-1">
+        {% for claim in answer.claims %}
+        <li class="claim leading-relaxed" data-ev="{% for n in claim.refs %}src-{{ n }} {% endfor %}" tabindex="0">{{ claim.text }}{% for n in claim.refs %}<a class="cite" href="#src-{{ n }}" aria-label="Source {{ n }}">{{ n }}</a>{% endfor %}</li>
+        {% endfor %}
+      </ol>
+      {% if answer.conflicts %}
+      <div class="divider mt-5 pt-4">
+        <h3 class="mb-2 text-sm font-semibold text-warn">Conflicting evidence</h3>
+        <ul class="muted list-disc space-y-1 pl-5 text-sm">{% for c in answer.conflicts %}<li>{{ c }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+    </div>
+    {% if answer.unsupported %}
+    <div class="unsupported mt-4 p-4">
+      <h3 class="mb-1 text-sm font-semibold text-bad">Statements without supporting evidence</h3>
+      <p class="faint mb-2 text-xs">The model produced these without a passage behind them. They are not findings.</p>
+      <ul class="muted list-disc space-y-1 pl-5 text-sm">{% for u in answer.unsupported %}<li>{{ u }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+    {% if answer.citations %}
+    <form method="post" action="{% org_url 'web:decision_create' %}" class="mt-4 flex flex-col gap-2 sm:flex-row">
+      {% csrf_token %}
+      {% for c in answer.citations %}<input type="hidden" name="chunk_id" value="{{ c.chunk_id }}"><input type="hidden" name="role" value="decision">{% endfor %}
+      <input class="field flex-1" type="text" name="title" placeholder="Save these passages as a candidate decision record" required>
+      <button class="btn shrink-0" type="submit">Save candidate</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="sources-heading" class="lg:col-span-2">
+    <h2 id="sources-heading" class="label mb-2">Sources</h2>
+    <ol class="space-y-2">
+      {% for c in answer.citations %}
+      <li id="src-{{ forloop.counter }}" class="source card p-3 text-sm" data-ev-id="src-{{ forloop.counter }}" tabindex="0">
+        <div class="flex items-start gap-2">
+          <span class="source-num">{{ forloop.counter }}</span>
+          <div class="min-w-0 flex-1">
+            <a class="link block truncate font-medium" href="{{ c.source_url }}" rel="noopener" target="_blank">{{ c.title|default:c.document_id }}</a>
+            <p class="faint mono mt-0.5 truncate">{{ c.source_type }} · {{ c.version_label }}{% if c.locator.page %} · p. {{ c.locator.page }}{% elif c.locator.slide %} · slide {{ c.locator.slide }}{% elif c.locator.sheet %} · {{ c.locator.sheet }}{% endif %}</p>
+          </div>
+        </div>
+        <p class="muted mt-2 line-clamp-4 text-[0.8125rem] leading-relaxed">{{ c.excerpt }}</p>
+      </li>
       {% endfor %}
     </ol>
-    {% if answer.conflicts %}<h3 class="mt-3 font-medium text-amber-800">Conflicting evidence</h3><ul class="list-disc pl-5 text-sm">{% for c in answer.conflicts %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
-    {% if answer.unsupported %}<h3 class="mt-3 font-medium text-red-800">Statements without supporting evidence (not findings)</h3><ul class="list-disc pl-5 text-sm">{% for u in answer.unsupported %}<li>{{ u }}</li>{% endfor %}</ul>{% endif %}
-  {% endif %}
-  <p class="mt-3 text-xs text-slate-500">Evidence state: {{ answer.evidence_state }}{% if answer.model_id %} · model {{ answer.model_id }}{% endif %} · {{ answer.retrieval_meta.retrieved|default:0 }} passages retrieved</p>
-</section>
-{% if answer.citations and not answer.withheld %}
-<form method="post" action="{% org_url 'web:decision_create' %}" class="mb-4 flex flex-wrap items-center gap-2 text-sm">
-  {% csrf_token %}
-  {% for c in answer.citations %}<input type="hidden" name="chunk_id" value="{{ c.chunk_id }}"><input type="hidden" name="role" value="decision">{% endfor %}
-  <input class="w-80 rounded border px-2 py-1" type="text" name="title" placeholder="Save these passages as a candidate decision record" required>
-  <button class="rounded border bg-white px-3 py-1" type="submit">Save candidate</button>
-</form>
-<section aria-labelledby="sources-heading">
-  <h2 id="sources-heading" class="mb-2 font-semibold">Retrieved passages</h2>
-  <ul class="space-y-2">
-    {% for c in answer.citations %}
-      <li class="rounded border bg-white p-3 text-sm">
-        <div class="flex justify-between"><a class="font-medium underline" href="{{ c.source_url }}" rel="noopener" target="_blank">{{ c.title|default:c.document_id }}</a><span class="text-slate-500">{{ c.source_type }} · {{ c.version_label }}</span></div>
-        <p class="mt-1 text-slate-700">{{ c.excerpt }}</p>
-      </li>
-    {% endfor %}
-  </ul>
-</section>
+  </section>
+</div>
 {% endif %}
+{% elif question %}
+{% else %}
+<p class="faint text-sm">Try a factual question for Quick Search, or a why question for Deep Investigation.</p>
 {% endif %}
 {% endblock %}

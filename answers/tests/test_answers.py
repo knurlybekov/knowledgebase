@@ -122,7 +122,7 @@ def test_search_page_and_json_endpoints(settings):
     c = Client()
     c.force_login(user)
     page = c.get(f"/o/{org.slug}/search/", {"q": "vacation days each year", "mode": "quick"})
-    assert page.status_code == 200 and b"Retrieved passages" in page.content
+    assert page.status_code == 200 and b"Sources" in page.content
     settings.HERMES_ENABLED = False
     deep = c.get(f"/o/{org.slug}/search/", {"q": "why did we change hosting", "mode": "deep"})
     assert deep.status_code == 200 and b"Deep Investigation is disabled" in deep.content
