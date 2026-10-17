@@ -27,6 +27,7 @@ from .api import (
     ensure_scope,
     revoke_link,
 )
+from .http import ProviderError
 from .models import SyncRun
 
 GOOGLE_SCOPES = [
@@ -38,6 +39,15 @@ MS_SCOPES = [
     "Files.Read.All",
     "Sites.Read.All",
 ]  # offline_access, openid, profile, email are added by MSAL
+
+
+def ms_scopes() -> list[str]:
+    """Sites.Read.All exists only for work and school accounts. With the
+    `consumers` or `common` authority a personal account may sign in, and
+    requesting it fails the consent, so it is asked for only with `organizations`."""
+    if settings.MICROSOFT_TENANT == "organizations":
+        return list(MS_SCOPES)
+    return ["Files.Read.All"]
 
 
 def _state(request, organization) -> str:
@@ -138,7 +148,7 @@ def microsoft_start(request, slug):
     if not settings.MICROSOFT_CLIENT_ID:
         return HttpResponseBadRequest("Microsoft connector is not configured")
     return redirect(
-        oauth.microsoft_authorization_url(request, MS_SCOPES, _state(request, organization))
+        oauth.microsoft_authorization_url(request, ms_scopes(), _state(request, organization))
     )
 
 
@@ -147,7 +157,7 @@ def microsoft_callback(request):
     if "error" in request.GET:
         return HttpResponseBadRequest("Microsoft authorization was refused")
     organization = _read_state(request, request.GET.get("state", ""))
-    result = oauth.microsoft_exchange_code(request, MS_SCOPES, request.GET.get("code", ""))
+    result = oauth.microsoft_exchange_code(request, ms_scopes(), request.GET.get("code", ""))
     identity = link_identity(
         request.user,
         provider=UserIdentity.PROVIDER_MICROSOFT,
@@ -203,27 +213,39 @@ def sharepoint_select(request, link_id):
     options = []
     my_drive = client.my_drive()
     options.append({"drive_id": my_drive["id"], "name": "My OneDrive", "site": ""})
-    sites = list(client.followed_sites())
     query = request.GET.get("q", "").strip()
-    if query:
-        if query.startswith("https://"):
-            from urllib.parse import urlparse
+    sites_error = ""
+    sites = []
+    try:
+        # SharePoint sites exist only for work and school accounts; a personal
+        # account gets its OneDrive and a note instead of an error page.
+        sites = list(client.followed_sites())
+        if query:
+            if query.startswith("https://"):
+                from urllib.parse import urlparse
 
-            parsed = urlparse(query)
-            sites.append(client.resolve_site(parsed.hostname or "", parsed.path or "/"))
-        else:
-            sites.extend(client.search_sites(query))
-    for site in sites:
-        for drive in client.site_drives(site["id"]):
-            options.append(
-                {
-                    "drive_id": drive["id"],
-                    "name": drive.get("name", ""),
-                    "site": site.get("displayName", ""),
-                }
-            )
+                parsed = urlparse(query)
+                sites.append(client.resolve_site(parsed.hostname or "", parsed.path or "/"))
+            else:
+                sites.extend(client.search_sites(query))
+        for site in sites:
+            for drive in client.site_drives(site["id"]):
+                options.append(
+                    {
+                        "drive_id": drive["id"],
+                        "name": drive.get("name", ""),
+                        "site": site.get("displayName", ""),
+                    }
+                )
+    except ProviderError as exc:
+        sites_error = (
+            "SharePoint sites are not available for this account "
+            f"(the service answered {exc.status or 'with an error'}). Your OneDrive is listed."
+        )
     return render(
-        request, "connectors/select.html", {"link": link, "options": options, "query": query}
+        request,
+        "connectors/select.html",
+        {"link": link, "options": options, "query": query, "sites_error": sites_error},
     )
 
 

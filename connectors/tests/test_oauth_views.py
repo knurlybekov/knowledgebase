@@ -86,3 +86,44 @@ class _FakeClient:
 
     def fetch(self, sd):
         raise NotImplementedError
+
+
+def test_microsoft_scopes_depend_on_the_authority(settings):
+    from connectors.views import ms_scopes
+
+    settings.MICROSOFT_TENANT = "organizations"
+    assert ms_scopes() == ["Files.Read.All", "Sites.Read.All"]
+    for tenant in ("consumers", "common"):
+        settings.MICROSOFT_TENANT = tenant
+        assert ms_scopes() == ["Files.Read.All"]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_library_picker_survives_an_account_without_sharepoint(monkeypatch):
+    """A personal Microsoft account has no sites: /me/followedSites fails. The
+    picker still offers the OneDrive and explains the missing sites."""
+    from django.test import Client
+
+    from connectors.api import ConnectorLink
+    from connectors.http import ProviderError
+    from connectors.tests.factories import make_link
+    from organizations.tests.factories import make_membership, make_org, make_user
+
+    org, user = make_org(), make_user()
+    make_membership(org, user)
+    link = make_link(org, user, provider=ConnectorLink.PROVIDER_SHAREPOINT)
+
+    class PersonalAccount:
+        def my_drive(self):
+            return {"id": "drive-me", "name": "OneDrive"}
+
+        def followed_sites(self):
+            raise ProviderError("http_error", status=400)
+
+    monkeypatch.setattr("connectors.clients.client_for", lambda link: PersonalAccount())
+    c = Client()
+    c.force_login(user)
+    r = c.get(f"/o/{org.slug}/connectors/{link.id}/select/")
+    assert r.status_code == 200
+    body = r.content.decode()
+    assert "My OneDrive" in body and "not available for this account" in body
