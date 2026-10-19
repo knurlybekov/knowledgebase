@@ -66,13 +66,21 @@ The result is built from validated statements only. Each one cites the passage i
 
 Deep Investigation runs each question as one Hermes process with a generated configuration: one MCP server (this platform's knowledge server), a bearer token that lives only in that process, every other toolset disabled, memory off. The runner attests this configuration at startup by running a benign and an adversarial prompt against a self-check MCP server and refusing to serve if any non-knowledge tool is called.
 
-Hermes ships a web dashboard. It is not part of the deployment, but it shows the agent at work with the same configuration: the MCP page lists the knowledge server with bearer auth, and the chat shows the tool calls.
+The same question, asked in the app and asked in Hermes's own dashboard with the same configuration. In the app the result is validated statements with numbered citations:
+
+![The investigation in the app](docs/screenshots/07-evidence-linking.png)
+
+In Hermes the boot card lists the knowledge server as the only MCP server and its tools as the only tools, the agent makes two calls (`trace_decision`, then `search_knowledge`), and its answer carries the same evidence ids the app validated:
 
 | | |
 |---|---|
-| ![Hermes MCP page](docs/screenshots/hermes-mcp.png) | ![Hermes chat with knowledge tool calls](docs/screenshots/hermes-chat.png) |
+| ![Hermes chat: tool calls](docs/screenshots/hermes-chat-tools.png) | ![Hermes chat: answer with evidence ids](docs/screenshots/hermes-chat.png) |
 
-In the chat on the right the agent called `trace_decision` and `search_knowledge`, found nothing about the question in that account's drive, and said so instead of inventing an answer. The six tools it lists are the only ones it has.
+The agent's own label note at the end says every passage is a search match and no verified record exists yet for the topic. That distinction comes from the `trace_decision` tool, which labels results `confirmed` only when a steward-verified record backs them.
+
+The MCP page of the dashboard shows the registration: one server, bearer auth, and a catalog of 65 others that stay uninstalled.
+
+![Hermes MCP page](docs/screenshots/hermes-mcp.png)
 
 To open the dashboard yourself, start it in the agent container with a password and the generated configuration pointing at the MCP server:
 
