@@ -57,6 +57,10 @@ class Command(BaseCommand):
             scope = ensure_scope(
                 link, kind=SyncScope.KIND_GOOGLE_CHANGES, display_name="Demo Google Drive (mocked)"
             )
+            # The mocked link has no real token: keep beat from polling it, or the
+            # first scheduled sync marks the link as failed and hides the demo corpus.
+            with with_org(org.id, user.pk):
+                SyncScope.objects.filter(id=scope.id).update(enabled=False)
             for seq, (sid, body) in enumerate(docs.items(), start=1):
                 sd = SourceDocument(
                     source_type="google_drive",

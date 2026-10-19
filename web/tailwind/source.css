@@ -633,7 +633,7 @@
   }
   .rail-dot {
     position: absolute;
-    left: 0.25rem;
+    left: -1.5rem; /* the list carries the rail padding; the dot sits on the rail line */
     top: 0.6rem;
     width: 0.75rem;
     height: 0.75rem;

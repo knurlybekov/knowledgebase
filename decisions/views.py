@@ -92,10 +92,17 @@ def decision_transition(request, record_id):
                 id=request.POST["superseded_by"], organization_id=request.organization.id
             ).first()
         try:
-            transition(
-                request.principal, record, request.POST.get("to", ""), superseded_by=superseder
+            target = request.POST.get("to", "")
+            transition(request.principal, record, target, superseded_by=superseder)
+            messages.success(
+                request,
+                {
+                    "draft": "Record accepted as draft.",
+                    "verified": "Record verified.",
+                    "candidate": "Record sent back to candidate.",
+                    "superseded": "Record marked superseded.",
+                }.get(target, f"Record moved to {target}."),
             )
-            messages.success(request, f"Record moved to {record.status}.")
         except (ValidationError, PermissionDenied) as exc:
             messages.error(request, str(getattr(exc, "message", exc)))
     return redirect(org_path(request.organization, f"/decisions/{record.id}/"))

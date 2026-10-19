@@ -19,7 +19,7 @@
     {% csrf_token %}
     {% if record.status == 'candidate' %}<button class="btn btn-primary" name="to" value="draft">Accept as draft</button>{% endif %}
     {% if record.status == 'draft' %}<button class="btn btn-primary" name="to" value="verified">Verify</button><button class="btn" name="to" value="candidate">Send back</button>{% endif %}
-    {% if record.status == 'verified' %}<label class="flex items-center gap-2 text-sm"><span class="faint">Superseded by</span><select name="superseded_by" class="field h-9 w-56">{% for s in superseders %}<option value="{{ s.id }}">{{ s.title }}</option>{% endfor %}</select></label><button class="btn" name="to" value="superseded">Mark superseded</button>{% endif %}
+    {% if record.status == 'verified' and superseders %}<label class="flex items-center gap-2 text-sm"><span class="faint">Superseded by</span><select name="superseded_by" class="field h-9 w-56">{% for s in superseders %}<option value="{{ s.id }}">{{ s.title }}</option>{% endfor %}</select></label><button class="btn" name="to" value="superseded">Mark superseded</button>{% elif record.status == 'verified' %}<span class="faint text-sm">Verified. No other verified record can supersede it yet.</span>{% endif %}
   </form>
   {% endif %}
 </div>

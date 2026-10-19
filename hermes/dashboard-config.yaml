@@ -1,0 +1,31 @@
+model:
+  default: anthropic/claude-sonnet-4-6
+  provider: anthropic
+agent:
+  max_turns: 12
+  max_tool_calls: 20
+  disabled_toolsets: [terminal, file, browser, web, search, x_search, vision, image_gen, video_gen, tts, skills, todo, memory, session_search, cronjob, code_execution, delegation, clarify, messaging, discord, discord_admin, debugging, kanban, safe]
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+approvals:
+  mode: manual
+  single_query_mode: deny
+gateway:
+  unmanaged_idle_exit_seconds: 60
+tools:
+  tool_search:
+    enabled: off
+platform_toolsets:
+  cli: [mcp-knowledge]
+mcp_servers:
+  knowledge:
+    url: http://host.docker.internal:8710/mcp
+    headers:
+      Authorization: "Bearer ${KNOWLEDGE_MCP_TOKEN}"
+    timeout: 60
+    connect_timeout: 20
+    tools:
+      resources: false
+      prompts: false
+
