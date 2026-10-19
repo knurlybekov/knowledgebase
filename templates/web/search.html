@@ -6,7 +6,7 @@
 <form method="get" action="{% org_url 'web:search' %}" class="card raised mb-8 p-3 sm:p-4" role="search">
   <label class="sr-only" for="q">Question</label>
   <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-    <input id="q" class="field field-lg flex-1" type="text" name="q" value="{{ question }}" placeholder="What is our vacation policy?" required autocomplete="off">
+    <input id="q" class="field field-lg flex-1" type="text" name="q" value="{{ question }}" placeholder="Ask a question about your documents" required autocomplete="off">
     <button class="btn btn-primary h-13 shrink-0 px-5" type="submit">Search
       <span class="flex h-6 w-6 items-center justify-center rounded-full bg-white/15"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
     </button>

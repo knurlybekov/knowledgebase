@@ -1,6 +1,9 @@
 """`manage.py seed_demo`: a demo organization with an admin, a steward and a
-member, the synthetic corpus linked to the member and the steward through a
-mocked connector, and one candidate decision record. Synthetic data only."""
+member, a synthetic corpus linked to every demo user through a mocked connector,
+and one candidate decision record. Synthetic data only.
+
+`--corpus org` (default) seeds the organizational corpus into /o/demo/;
+`--corpus academic` seeds lecture notes, a slide deck and a report into /o/studies/."""
 
 from datetime import UTC, datetime
 
@@ -20,13 +23,14 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--password", default="demo-passphrase-change-me")
+        parser.add_argument("--corpus", choices=("org", "academic"), default="org")
 
     def handle(self, *args, **options):
         from eval.corpus import documents
 
-        org, _ = Organization.objects.get_or_create(
-            slug="demo", defaults={"name": "Demo Organization"}
-        )
+        academic = options["corpus"] == "academic"
+        slug, name = ("studies", "My studies") if academic else ("demo", "Demo Organization")
+        org, _ = Organization.objects.get_or_create(slug=slug, defaults={"name": name})
         users = {}
         for role, email in (
             (Membership.ROLE_ADMIN, "admin@demo.invalid"),
@@ -44,8 +48,13 @@ class Command(BaseCommand):
                     organization=org, user=user, defaults={"role": role}
                 )
             users[role] = user
-        docs = documents()
-        for user in (users[Membership.ROLE_MEMBER], users[Membership.ROLE_STEWARD]):
+        if academic:
+            from eval.corpus_academic import documents as academic_documents
+
+            docs = academic_documents()
+        else:
+            docs = {sid: (body, "text/markdown", None) for sid, body in documents().items()}
+        for user in users.values():
             link = create_link(
                 org,
                 user,
@@ -61,13 +70,13 @@ class Command(BaseCommand):
             # first scheduled sync marks the link as failed and hides the demo corpus.
             with with_org(org.id, user.pk):
                 SyncScope.objects.filter(id=scope.id).update(enabled=False)
-            for seq, (sid, body) in enumerate(docs.items(), start=1):
+            for seq, (sid, (body, mime, title)) in enumerate(docs.items(), start=1):
                 sd = SourceDocument(
                     source_type="google_drive",
                     source_id=sid,
                     version_label="v1",
-                    title=sid.split(":", 1)[1].replace("-", " ").title(),
-                    mime_type="text/markdown",
+                    title=title or sid.split(":", 1)[1].replace("-", " ").title(),
+                    mime_type=mime,
                     source_url=f"https://docs.google.com/document/d/{sid.split(':', 1)[1]}",
                 )
                 apply_change(
@@ -80,29 +89,32 @@ class Command(BaseCommand):
                         observed_at=datetime.now(UTC),
                         document=sd,
                     ),
-                    lambda _sd, body=body: DownloadResult(
-                        content=body, version_label="v1", mime_type="text/markdown"
+                    lambda _sd, body=body, mime=mime: DownloadResult(
+                        content=body, version_label="v1", mime_type=mime
                     ),
                 )
         steward = Principal(
             user=users[Membership.ROLE_STEWARD], organization=org, role=Membership.ROLE_STEWARD
         )
+        if academic:
+            source_id = "gdrive:software-engineering-capstone-decision-2026-03"
+            title = "Capstone backend framework: Django (March 2026)"
+        else:
+            source_id = "gdrive:hosting-decision"
+            title = "Hosting provider selection (March 2025)"
         with with_org(org.id, steward.user_id):
-            chunk = (
-                Chunk.objects.filter(document__source_id="gdrive:hosting-decision")
-                .order_by("position")
-                .first()
+            chunks = Chunk.objects.filter(document__source_id=source_id).order_by("position")
+            # Prefer the passage under the "Decision" heading; fall back to the first chunk.
+            chunk = next(
+                (c for c in chunks if c.heading_path and c.heading_path[-1] == "Decision"), None
             )
-            exists = DecisionRecord.objects.filter(
-                organization=org, title="Hosting provider selection (March 2025)"
-            ).exists()
+            chunk = chunk or chunks.first()
+            exists = DecisionRecord.objects.filter(organization=org, title=title).exists()
         if chunk and not exists:
             create_candidate(
                 steward,
-                title="Hosting provider selection (March 2025)",
+                title=title,
                 origin=DecisionRecord.ORIGIN_USER,
                 evidence=[EvidenceInput(chunk_id=str(chunk.id), role="decision")],
             )
-        self.stdout.write(
-            "Demo ready: /o/demo/ — admin@demo.invalid, steward@demo.invalid, member@demo.invalid"
-        )
+        self.stdout.write(f"Demo ready: /o/{slug}/ (admin@, steward@ and member@demo.invalid)")

@@ -8,7 +8,7 @@
 <form method="post" action="{% org_url 'web:investigation_start' %}" class="card raised mb-8 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:p-4">
   {% csrf_token %}
   <label class="sr-only" for="q">Question</label>
-  <input id="q" class="field field-lg flex-1" type="text" name="q" maxlength="2000" required placeholder="Why did we change our cloud hosting provider?" autocomplete="off">
+  <input id="q" class="field field-lg flex-1" type="text" name="q" maxlength="2000" required placeholder="Why was this decision made, and what alternatives were considered?" autocomplete="off">
   <button class="btn btn-primary h-13 shrink-0 px-5" type="submit">Investigate
     <span class="flex h-6 w-6 items-center justify-center rounded-full bg-white/15"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
   </button>

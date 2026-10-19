@@ -1,6 +1,10 @@
 # Knowledgebase
 
-An organizational intelligence platform. It connects each member's own Google Drive or SharePoint account, indexes what that account can see, and answers questions with citations back to the files. A quick search returns a cited answer in seconds. A deep investigation runs an agent (Hermes) over several documents through read-only tools and reports what is documented, what conflicts, and what is not established. Documented decisions become records that a steward verifies.
+A study assistant that reads your own course material. I collected lecture notes, slide decks, PDFs and project reports from four years of computing science, scattered across Google Drive folders, and wanted one place to ask questions across all of them and get answers that point back to the exact slide or paragraph.
+
+The platform connects a Google Drive (or SharePoint) account, indexes what that account can see, and answers in two modes. **Quick Search** returns a cited answer in seconds. **Deep Investigation** runs an agent (Hermes) over several documents through read-only tools and reports what the material establishes, what conflicts between sources, and what it does not say. Settled conclusions, such as which method a course recommends or what a project team decided, become **records** that are verified and kept with their evidence.
+
+It is built as a multi-user system with permissions, so it also works for a team on shared drives: every member sees only what their own account can open, and every answer is bound to that.
 
 Django 6.1 · PostgreSQL 17 with pgvector · Celery · HTMX · Tailwind v4 · Hermes Agent v0.22.1 (pinned) · MCP.
 
@@ -10,42 +14,46 @@ Django 6.1 · PostgreSQL 17 with pgvector · Celery · HTMX · Tailwind v4 · He
 
 | Function | How it works | Verified |
 |---|---|---|
-| Connect a source | Each member links their own account (OAuth). The sync lists what the account can see, downloads supported formats, parses, chunks, and embeds them. Permissions are per member and revalidated every 12 hours. | Google Drive live on a 3,000-item drive; SharePoint and OneDrive mock-tested (see below) |
-| Quick Search | Hybrid retrieval (vector plus full text) over the member's visible documents, then one model call that writes claims bound to passages. | Live |
-| Deep Investigation | A Hermes agent gets one short-lived token and two read-only tools. It searches, reads, cross-references, and returns statements with evidence ids. Statements whose evidence was not returned to that run are set apart as unsupported. | Live, end to end through the web UI |
-| Decision records | Passages from an answer or an investigation become a candidate record. A steward accepts it as draft, verifies it, or sends it back. A record is visible only to members who can see every passage behind it. | Live |
-| Administration | Document counts, access freshness, sync scopes, the change inbox, and recent runs. | Live |
-| Dark mode, keyboard, phone width | Theme follows the system and can be switched; every control is keyboard operable; pages stack at phone width. | Live |
+| Connect a drive | Link your own account (OAuth). The sync lists what the account can see, downloads Docs, Sheets, Slides, Word, Excel, PowerPoint, PDF, text and Markdown, then parses, chunks and embeds them. Audio, video and archives are recorded as metadata only. Access is revalidated every 12 hours. | Google Drive, live on a personal drive of about 3,000 items; SharePoint and OneDrive mock-tested (see below) |
+| Quick Search | Hybrid retrieval (vector plus full text) over your visible documents, then one model call that writes claims bound to passages. Each claim carries the number of its source; a slide or page number is part of the citation. | Live |
+| Deep Investigation | A Hermes agent gets one short-lived token and read-only tools. It searches, reads, cross-references, and returns statements with evidence ids. Statements whose evidence was not returned to that run are set apart as unsupported, never shown as findings. | Live, end to end through the web UI |
+| Records | Passages from an answer or an investigation become a candidate record. A steward accepts it as draft, verifies it, or sends it back. A record is visible only when every passage behind it is visible to you. | Live |
+| Administration | Document counts, access freshness, sync scopes, the change inbox, recent sync runs. | Live |
+| Dark mode, keyboard, phone width | The theme follows the system and can be switched; every control is keyboard operable; pages stack at phone width. | Live |
 
-All screenshots below were taken from the running app over the synthetic demo corpus (`eval/corpus/`). No real organizational content appears in this repository.
+The screenshots below come from the running app over a synthetic study corpus (`eval/corpus_academic/`: six lecture notes, a generated slide deck, a generated report). No real course material or personal file appears in this repository.
 
 ## Walkthrough
 
-**Log in.** Local accounts; the demo organization ships with an admin, a steward, and a member.
-
-![Login](docs/screenshots/01-login.png)
-
-**Quick Search.** The answer's sentences carry numbered chips. The sources on the right carry the same numbers. Hover or focus a sentence and its source lights up, and back.
-
-![Quick Search](docs/screenshots/03-quick-search.png)
-
-**Deep Investigation.** The agent runs in its own process with a budget of turns, tool calls, characters, and time. The page polls while it runs and can cancel it.
-
-![Investigation running](docs/screenshots/05-investigation-running.png)
-
-The result is built from validated statements only. Each one cites the passage it rests on; conflicts and open questions get their own sections.
-
-![Evidence linking](docs/screenshots/07-evidence-linking.png)
-
-**Decision records.** Save the passages behind an answer as a candidate. A steward verifies it. The timeline shows which stages the evidence establishes and which it does not.
-
-![Decision record](docs/screenshots/09-decision-verified.png)
-
-**Investigations, decisions, accounts, administration.**
+**Organizations and login.** Local accounts. A user can belong to several organizations; mine are "My studies" and a demo team.
 
 | | |
 |---|---|
-| ![Investigations](docs/screenshots/04-investigations.png) | ![Decisions](docs/screenshots/08-decisions.png) |
+| ![Login](docs/screenshots/01-login.png) | ![Organizations](docs/screenshots/00-organizations.png) |
+
+**Quick Search.** The answer's sentences carry numbered chips, the sources carry the same numbers, and a slide deck cites the slide. Hover or focus a sentence and its source lights up, and back.
+
+![Quick Search](docs/screenshots/03-quick-search.png)
+
+**Deep Investigation.** The agent runs in its own process with a budget of turns, tool calls, characters and time. The page polls while it runs and can cancel it.
+
+![Investigation running](docs/screenshots/05-investigation-running.png)
+
+The result is built from validated statements only. Each one cites the passage it rests on. A statement the agent could not back with a returned passage is set apart at the bottom and labeled.
+
+![Evidence linking](docs/screenshots/07-evidence-linking.png)
+
+**Records.** A capstone decision from a project report, saved as a candidate, then verified. The timeline shows which stages the evidence establishes and which it does not.
+
+| | |
+|---|---|
+| ![Candidate record](docs/screenshots/09-decision-candidate.png) | ![Verified record](docs/screenshots/09-decision-verified.png) |
+
+**Investigations, records, accounts, administration.**
+
+| | |
+|---|---|
+| ![Investigations](docs/screenshots/04-investigations.png) | ![Records](docs/screenshots/08-decisions.png) |
 | ![Accounts](docs/screenshots/10-accounts.png) | ![Administration](docs/screenshots/11-administration.png) |
 
 **Dark mode and phone width.**
@@ -58,13 +66,13 @@ The result is built from validated statements only. Each one cites the passage i
 
 Deep Investigation runs each question as one Hermes process with a generated configuration: one MCP server (this platform's knowledge server), a bearer token that lives only in that process, every other toolset disabled, memory off. The runner attests this configuration at startup by running a benign and an adversarial prompt against a self-check MCP server and refusing to serve if any non-knowledge tool is called.
 
-Hermes also ships a web dashboard. It is not part of the deployment, but it is useful to watch the agent work with the same configuration. The MCP page shows the knowledge server registered with bearer auth, and the chat shows the tool calls the agent makes.
+Hermes ships a web dashboard. It is not part of the deployment, but it shows the agent at work with the same configuration: the MCP page lists the knowledge server with bearer auth, and the chat shows the tool calls.
 
 | | |
 |---|---|
 | ![Hermes MCP page](docs/screenshots/hermes-mcp.png) | ![Hermes chat with knowledge tool calls](docs/screenshots/hermes-chat.png) |
 
-In the chat on the right the agent called `trace_decision` and `search_knowledge`, found nothing about a hosting decision in that account's drive, and said so instead of inventing an answer. The six tools it lists are the only ones it has.
+In the chat on the right the agent called `trace_decision` and `search_knowledge`, found nothing about the question in that account's drive, and said so instead of inventing an answer. The six tools it lists are the only ones it has.
 
 To open the dashboard yourself, start it in the agent container with a password and the generated configuration pointing at the MCP server:
 
@@ -89,7 +97,8 @@ make sync                       # uv sync (Python 3.14)
 make up                         # postgres (127.0.0.1:5435) + redis (127.0.0.1:6381)
 make migrate                    # as kb_migrator
 make tailwind-build
-make seed-demo                  # demo organization with synthetic documents
+make seed-demo                  # demo team with synthetic documents at /o/demo/
+python manage.py seed_demo --corpus academic   # study corpus at /o/studies/
 make run                        # web server; demo users: admin@/steward@/member@demo.invalid
 make test                       # pytest on the compose Postgres
 make eval                       # eval/results/<date>.md
@@ -105,7 +114,7 @@ Runtime processes use `DATABASE_URL` with the `kb_app` role; migrations and test
 
 **SharePoint and OneDrive.** Register an app in Entra with platform Web, redirect URI `http://localhost:8010/connectors/microsoft/callback/`, delegated Microsoft Graph permissions `Files.Read.All` and, for work or school accounts, `Sites.Read.All`. Put `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, and `MICROSOFT_TENANT` (`organizations`, `consumers`, or `common`) in `.env`. With `consumers` or `common` the app asks only for `Files.Read.All`, because a personal account has no SharePoint permission.
 
-A work or school tenant can block user consent for third-party apps. In that case the consent page shows an "approval required" message, and an administrator of that tenant must grant the app in Entra before anyone can link. This blocked the live SharePoint test for this project, so the Graph connector remains verified against mocked API responses only (`connectors/tests/`).
+A work or school tenant can block user consent for third-party apps. In that case the consent page shows an "approval required" message, and an administrator of that tenant must grant the app in Entra before anyone can link. My university tenant does this, so the Graph connector remains verified against mocked API responses only (`connectors/tests/`).
 
 Each member links their own account; the platform indexes what that account can see, and other members see a document only when their own account can see it.
 
